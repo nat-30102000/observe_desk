@@ -23,6 +23,15 @@ A Windows desktop app that captures highlights, markdown, bookmarks, feeds and m
 ### AI providers (from your note)
 GPT (OpenAI), Claude, Grok (xAI), Gemini, NVIDIA NIM, OpenCode, Ollama **Cloud** (not local). Your own API key per provider, behind one provider interface. The user picks the default provider and can set a different one per task (summary, tags).
 
+## 1b. Product shape update: the desktop pet "Nib"
+The primary surface is a small always-on-top animated pet (working name **Nib**, an ink-drop creature), not a big window.
+- Drag text, links, images or files onto Nib to capture; select text + Ctrl Alt H to highlight; click Nib for a menu (Quick add, Bookmarks, Feeds, Subscriptions, Settings).
+- Moods: Idle, Curious (text selected), Nom nom (drop), Sleepy (Obsidian closed, queue pending), Reminder (renewal soon), Happy (synced). Speech bubbles fade after a few seconds.
+- Draggable, snaps to screen edges, hides to tray (Ctrl Alt N), hides during full-screen apps, honours Windows reduced motion.
+- The big "Desk" window (Inbox, Bookmarks, Feeds, Subscriptions, Settings) opens from Nib.
+- Theme: light, playful (cream, pink, lilac, mint, sun yellow; Fredoka headings, Nunito body).
+- Tauri implementation: transparent frameless always-on-top window for Nib, a second normal window for the Desk. Design: Claude design canvas (see session link).
+
 ## 2. Open points to confirm
 - "OpenCode" is assumed to mean OpenCode's hosted/Zen API (OpenAI-compatible). Please confirm.
 - Where API keys are stored: Windows Credential Manager (assumed).
