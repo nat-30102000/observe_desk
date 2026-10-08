@@ -19,9 +19,13 @@ import {
 } from '../platform';
 import { KEY_SECRET, loadSettings, makeClient } from '../service';
 import { INITIAL_STATE, type AppState, type Settings } from '../state';
+import { Feeds, useFeeds } from './Feeds';
 import { Nib } from './Nib';
+import { Reader } from './Reader';
+import { Search } from './Search';
+import { Subscriptions } from './Subscriptions';
 
-type Tab = 'inbox' | 'bookmarks' | 'settings';
+type Tab = 'inbox' | 'bookmarks' | 'feeds' | 'subscriptions' | 'search' | 'settings';
 
 async function openExternal(url: string): Promise<void> {
   if (isTauri()) {
@@ -46,6 +50,8 @@ function useAppState(): AppState {
 export function Desk() {
   const [tab, setTab] = useState<Tab>('inbox');
   const state = useAppState();
+  const feeds = useFeeds();
+  const unreadFeeds = feeds.items.filter((i) => !i.read).length;
 
   useEffect(() => {
     let off = () => undefined as void;
@@ -60,14 +66,13 @@ export function Desk() {
     <div className="desk">
       <nav className="side" aria-label="Main">
         <div className="brand"><span className="logo"><Nib mood="idle" size={26} /></span>observe_desk</div>
-        {(['inbox', 'bookmarks'] as const).map((t) => (
+        {([['inbox', 'Inbox'], ['bookmarks', 'Bookmarks'], ['feeds', 'Feeds'], ['subscriptions', 'Subscriptions'], ['search', 'Search']] as const).map(([t, label]) => (
           <button key={t} className={tab === t ? 'nav on' : 'nav'} onClick={() => setTab(t)}>
-            {t === 'inbox' ? 'Inbox' : 'Bookmarks'}
+            {label}
             {t === 'inbox' && state.pending > 0 && <span className="count">{state.pending}</span>}
+            {t === 'feeds' && unreadFeeds > 0 && <span className="count">{unreadFeeds > 99 ? '99+' : unreadFeeds}</span>}
           </button>
         ))}
-        <button className="nav" disabled title="Coming in the next phase">Feeds <span className="soon">soon</span></button>
-        <button className="nav" disabled title="Coming in the next phase">Subscriptions <span className="soon">soon</span></button>
         <button className={tab === 'settings' ? 'nav on' : 'nav'} onClick={() => setTab('settings')}>Settings</button>
         <div className="status">
           <span className={`dot ${statusClass}`} />
@@ -77,6 +82,9 @@ export function Desk() {
       <main className="main">
         {tab === 'inbox' && <Inbox state={state} />}
         {tab === 'bookmarks' && <Bookmarks />}
+        {tab === 'feeds' && <Feeds />}
+        {tab === 'subscriptions' && <Subscriptions />}
+        {tab === 'search' && <Search />}
         {tab === 'settings' && <SettingsView />}
       </main>
     </div>
@@ -131,6 +139,7 @@ function Bookmarks() {
   const [error, setError] = useState<string | null>(null);
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [query, setQuery] = useState('');
+  const [reading, setReading] = useState<BookmarkEntry | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
@@ -155,6 +164,8 @@ function Bookmarks() {
     .filter((b) => !q || `${b.title} ${b.url} ${b.tags.join(' ')}`.toLowerCase().includes(q))
     .sort((a, b) => (b.captured ?? '').localeCompare(a.captured ?? ''));
 
+  if (reading) return <section><Reader url={reading.url} title={reading.title} onClose={() => setReading(null)} /></section>;
+
   return (
     <section>
       <header className="bar">
@@ -172,7 +183,10 @@ function Bookmarks() {
             <h3>{b.title}</h3>
             {b.description && <p>{b.description}</p>}
             <div className="tags">{b.tags.filter((t) => t !== 'bookmarks').map((t) => <span key={t} className="tag">#{t}</span>)}</div>
-            <button className="btn small" onClick={() => void openExternal(b.url)}>Open link</button>
+            <div className="row">
+              <button className="btn small" onClick={() => setReading(b)}>Read here</button>
+              <button className="btn small" onClick={() => void openExternal(b.url)}>Open link</button>
+            </div>
           </article>
         ))}
       </div>

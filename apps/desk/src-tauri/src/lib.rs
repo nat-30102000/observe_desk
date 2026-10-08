@@ -55,6 +55,45 @@ async fn obsidian_fetch(req: ObsidianRequest) -> Result<ObsidianResponse, String
     Ok(ObsidianResponse { status, body })
 }
 
+#[derive(Serialize)]
+struct HttpResponse {
+    status: u16,
+    body: String,
+    final_url: String,
+}
+
+const MAX_PAGE_BYTES: usize = 5 * 1024 * 1024;
+
+/// Fetches feeds and web pages for the reader. Plain http(s) only, size and time limited.
+#[tauri::command]
+async fn http_get(url: String) -> Result<HttpResponse, String> {
+    let parsed = reqwest::Url::parse(&url).map_err(|e| e.to_string())?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err("Only http and https links can be fetched".into());
+    }
+    let client = reqwest::Client::builder()
+        .user_agent("observe_desk/0.1 (+feed reader)")
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let resp = client
+        .get(parsed)
+        .header("Accept", "application/atom+xml, application/rss+xml, application/xml, text/xml, text/html;q=0.8, */*;q=0.5")
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = resp.status().as_u16();
+    let final_url = resp.url().to_string();
+    if resp.content_length().is_some_and(|n| n as usize > MAX_PAGE_BYTES) {
+        return Err("That page is too large".into());
+    }
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    if bytes.len() > MAX_PAGE_BYTES {
+        return Err("That page is too large".into());
+    }
+    Ok(HttpResponse { status, body: String::from_utf8_lossy(&bytes).into_owned(), final_url })
+}
+
 fn reveal(app: &AppHandle, label: &str) {
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.show();
@@ -157,6 +196,7 @@ pub fn run() {
         )
         .invoke_handler(tauri::generate_handler![
             obsidian_fetch,
+            http_get,
             show_window,
             hide_window,
             storage::load_json,

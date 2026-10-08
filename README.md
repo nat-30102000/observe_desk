@@ -39,5 +39,13 @@ npm run tauri -w @observe/desk build  # Windows installer (NSIS)
 - `Ctrl+Alt+N`: show or hide Nib. The tray icon does the same.
 - If Obsidian is closed, captures wait in a local queue (Nib gets sleepy and shows a count) and are filed when it is back.
 
+## Phase 2 features
+- **Feeds**: follow a blog, RSS/Atom feed, newsletter feed or YouTube channel/playlist link (the app finds the feed for you). Unread tracking, refresh every 30 minutes, Nib announces new items.
+- **Reader**: opens any feed item or bookmark as a clean article (Readability, sanitised). Select text and send it as a highlight, or clip the whole article as markdown into Notes.
+- **Subscriptions**: paid subscriptions as notes in `Subscriptions/` (cost, cycle, next renewal, status). Totals per currency, "Renewed" rolls the date forward, Nib reminds you 7 days and 1 day before a renewal.
+- **Search**: one box over clippings, bookmarks, feed items and subscriptions (in-memory index built when the tab opens).
+
+Not in yet: PDF/EPUB reader and the AI summaries/auto-tagging layer (next).
+
 ## How data is stored
 The vault is the source of truth. One note per source in `Clippings/` (highlights appended with block ids, so retries never duplicate), bookmarks in `Bookmarks/`, notes in `Notes/`. The app only keeps the pending queue and settings in its app-data folder; the API key is kept in Windows Credential Manager.

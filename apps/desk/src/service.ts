@@ -4,16 +4,29 @@ import {
   ObsidianClient,
   OfflineError,
   captureFromExtension,
+  dueReminders,
+  listSubscriptions,
+  type Reminder,
   speechForFlush,
   type Capture,
   type QueueItem,
 } from '@observe/core';
 import { emitBus, getSecret, listenBus, listenNative, loadJson, obsidianFetch, saveJson } from './platform';
+import { FeedService } from './feedService';
 import { DEFAULT_SETTINGS, INITIAL_STATE, type AppState, type QueuedSummary, type Settings } from './state';
 
 export const KEY_SECRET = 'obsidian-api-key';
 const SYNC_EVERY_MS = 30_000;
 const RECENT_LIMIT = 20;
+const REMINDER_EVERY_MS = 60 * 60_000;
+
+const localToday = (): string => new Date().toLocaleDateString('en-CA');
+
+function reminderText(r: Reminder, more: number): string {
+  const when = r.days === 1 ? 'tomorrow' : `in ${r.days} days`;
+  const money = `${r.cost.toFixed(2)} ${r.currency}`;
+  return `Psst! ${r.service} renews ${when} (${money}).${more > 0 ? ` Plus ${more} more soon.` : ''}`;
+}
 
 export async function loadSettings(): Promise<Settings> {
   const saved = await loadJson<Partial<Settings>>('settings');
@@ -55,6 +68,9 @@ export class AppService {
   private timer: ReturnType<typeof setInterval> | undefined;
   private readonly unlisten: Array<() => void> = [];
   private lastSpeech = '';
+  private readonly feeds = new FeedService((t) => this.say(t));
+  private reminderTimer: ReturnType<typeof setInterval> | undefined;
+  private seenReminders = new Set<string>();
 
   subscribe(fn: (s: AppState) => void): () => void {
     this.listeners.add(fn);
@@ -79,6 +95,7 @@ export class AppService {
       await listenBus<void>('settings-changed', () => void this.reloadSettings().then(() => this.sync())),
       await listenBus<void>('sync', () => void this.sync()),
       await listenBus<void>('retry-failed', () => void this.queue.retryFailed().then(() => this.sync())),
+      await listenBus<void>('subs-changed', () => void this.checkReminders()),
       await listenBus<void>('state?', () => void emitBus('state', this.state)),
       await listenNative<unknown>('ext-capture', (raw) => {
         const c = captureFromExtension(raw);
@@ -88,10 +105,16 @@ export class AppService {
     );
     this.timer = setInterval(() => void this.sync(), SYNC_EVERY_MS);
     await this.sync();
+    await this.feeds.start();
+    this.seenReminders = new Set((await loadJson<string[]>('reminders-seen')) ?? []);
+    this.reminderTimer = setInterval(() => void this.checkReminders(), REMINDER_EVERY_MS);
+    void this.checkReminders();
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
+    if (this.reminderTimer) clearInterval(this.reminderTimer);
+    this.feeds.stop();
     this.unlisten.forEach((u) => u());
   }
 
@@ -99,6 +122,22 @@ export class AppService {
     this.settings = await loadSettings();
     this.client = await makeClient(this.settings);
     this.publish({ configured: this.client !== null });
+  }
+
+  /** Looks at the Subscriptions notes and tells you once per renewal milestone (7 days, 1 day). */
+  async checkReminders(): Promise<void> {
+    if (!this.client || this.state.offline) return;
+    try {
+      const subs = await listSubscriptions(this.client, this.settings.folders);
+      const key = (r: Reminder) => `${r.service}:${r.date}:${r.days}`;
+      const fresh = dueReminders(subs, localToday()).filter((r) => !this.seenReminders.has(key(r)));
+      if (fresh.length === 0) return;
+      fresh.forEach((r) => this.seenReminders.add(key(r)));
+      await saveJson('reminders-seen', [...this.seenReminders].slice(-200));
+      this.say(reminderText(fresh[0] as Reminder, fresh.length - 1));
+    } catch {
+      /* Obsidian closed or key wrong: the next hourly check tries again. */
+    }
   }
 
   async capture(c: Capture): Promise<void> {

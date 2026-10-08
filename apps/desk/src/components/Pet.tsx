@@ -56,6 +56,8 @@ export function Pet() {
     if (!state.speech) return;
     speak(state.speech.text);
     if (/^Filed/.test(state.speech.text)) flash('happy');
+    else if (/^Extra, extra/.test(state.speech.text)) flash('newsflash', 6000);
+    else if (/^Psst!/.test(state.speech.text)) flash('reminder', 8000);
   }, [state.speech, speak, flash]);
 
   // Ctrl+Alt+H: read the clipboard and open quick-add with it.

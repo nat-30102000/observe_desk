@@ -120,3 +120,19 @@ export async function listenNative<T>(name: string, handler: Handler<T>): Promis
   const { listen } = await import('@tauri-apps/api/event');
   return listen<T>(name, (e) => handler(e.payload));
 }
+
+export interface HttpResult {
+  status: number;
+  body: string;
+  finalUrl: string;
+}
+
+/** Fetch a feed or web page. Goes through Rust in the app (no CORS); plain fetch in a browser. */
+export async function httpGet(url: string): Promise<HttpResult> {
+  if (isTauri()) {
+    const r = await invoke<{ status: number; body: string; final_url: string }>('http_get', { url });
+    return { status: r.status, body: r.body, finalUrl: r.final_url };
+  }
+  const r = await fetch(url);
+  return { status: r.status, body: await r.text(), finalUrl: r.url || url };
+}
