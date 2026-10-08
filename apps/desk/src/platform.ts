@@ -160,11 +160,17 @@ export async function httpGet(url: string): Promise<HttpResult> {
 export const aiFetch: FetchLike = async (url, init) => {
   if (isTauri()) {
     const r = await invoke<{ status: number; body: string }>('http_request', {
-      req: { url, method: init.method, headers: init.headers, body: init.body ?? null },
+      req: {
+        url,
+        method: init.method,
+        headers: init.headers,
+        body: init.bodyBytes ? null : (init.body ?? null),
+        body_base64: init.bodyBytes ? toBase64(init.bodyBytes) : null,
+      },
     });
     return { status: r.status, text: async () => r.body };
   }
-  const r = await fetch(url, { method: init.method, headers: init.headers, body: init.body });
+  const r = await fetch(url, { method: init.method, headers: init.headers, body: init.bodyBytes ? (init.bodyBytes as unknown as BodyInit) : init.body });
   return { status: r.status, text: () => r.text() };
 };
 
@@ -247,4 +253,28 @@ export async function snipImage(): Promise<Uint8Array> {
 
 export async function snipClose(): Promise<void> {
   if (isTauri()) await invoke<void>('snip_close');
+}
+
+export interface MailConfig {
+  host: string;
+  port: number;
+  tls: boolean;
+  username: string;
+  password: string;
+  folder: string;
+}
+
+export interface MailBatch {
+  uid_validity: number;
+  last_uid: number;
+  messages: Array<{ uid: number; raw_base64: string }>;
+  skipped: number[];
+  more: boolean;
+  exists: number;
+}
+
+/** New mail since `afterUid` (desktop app only). With no saved position it just reports the mailbox. */
+export async function imapFetch(cfg: MailConfig, uidValidity: number | null, afterUid: number | null, limit: number): Promise<MailBatch> {
+  if (!isTauri()) throw new Error('Reading email is only available in the desktop app.');
+  return invoke<MailBatch>('imap_fetch', { cfg, uidValidity, afterUid, limit });
 }

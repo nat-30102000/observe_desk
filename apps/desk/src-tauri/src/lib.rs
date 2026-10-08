@@ -114,6 +114,9 @@ struct HttpRequest {
     method: String,
     headers: HashMap<String, String>,
     body: Option<String>,
+    /// Binary bodies (voice recordings) arrive base64 encoded and take precedence over `body`.
+    #[serde(default)]
+    body_base64: Option<String>,
 }
 
 /// Calls hosted AI providers. https only, never loopback, size and time limited.
@@ -135,7 +138,11 @@ async fn http_request(req: HttpRequest) -> Result<ObsidianResponse, String> {
     for (k, v) in req.headers {
         builder = builder.header(k, v);
     }
-    if let Some(body) = req.body {
+    if let Some(b64) = req.body_base64 {
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD.decode(b64).map_err(|e| e.to_string())?;
+        builder = builder.body(bytes);
+    } else if let Some(body) = req.body {
         builder = builder.body(body);
     }
     let resp = builder.send().await.map_err(|e| e.to_string())?;
@@ -247,6 +254,7 @@ pub fn run() {
     let quick_add = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyH);
     let pet_toggle = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN);
     let snip = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyS);
+    let voice = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyV);
 
     tauri::Builder::default()
         .manage(snip::SnipState::default())
@@ -264,6 +272,8 @@ pub fn run() {
                         let _ = app.emit("hotkey-capture", ());
                     } else if shortcut == &pet_toggle {
                         toggle_pet(app);
+                    } else if shortcut == &voice {
+                        let _ = app.emit("hotkey-voice", ());
                     } else if shortcut == &snip {
                         let app = app.clone();
                         std::thread::spawn(move || {
@@ -314,6 +324,9 @@ pub fn run() {
             }
             if let Err(e) = handle.global_shortcut().register(pet_toggle) {
                 eprintln!("could not register Ctrl+Alt+N: {e}");
+            }
+            if let Err(e) = handle.global_shortcut().register(voice) {
+                eprintln!("could not register Ctrl+Alt+V: {e}");
             }
             if let Err(e) = handle.global_shortcut().register(snip) {
                 eprintln!("could not register Ctrl+Alt+S: {e}");

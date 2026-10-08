@@ -20,14 +20,16 @@ import {
 import { KEY_SECRET, loadSettings, makeClient } from '../service';
 import { INITIAL_STATE, type AppState, type Settings } from '../state';
 import { AiPanel } from './AiPanel';
+import { EmailPanel } from './EmailPanel';
 import { Feeds, useFeeds } from './Feeds';
+import { ImportView } from './ImportView';
 import { Library } from './Library';
 import { Nib } from './Nib';
 import { Reader } from './Reader';
 import { Search } from './Search';
 import { Subscriptions } from './Subscriptions';
 
-type Tab = 'inbox' | 'bookmarks' | 'feeds' | 'library' | 'subscriptions' | 'search' | 'settings';
+type Tab = 'inbox' | 'bookmarks' | 'feeds' | 'library' | 'subscriptions' | 'import' | 'search' | 'settings';
 
 async function openExternal(url: string): Promise<void> {
   if (isTauri()) {
@@ -68,7 +70,7 @@ export function Desk() {
     <div className="desk">
       <nav className="side" aria-label="Main">
         <div className="brand"><span className="logo"><Nib mood="idle" size={26} /></span>observe_desk</div>
-        {([['inbox', 'Inbox'], ['bookmarks', 'Bookmarks'], ['feeds', 'Feeds'], ['library', 'Library'], ['subscriptions', 'Subscriptions'], ['search', 'Search']] as const).map(([t, label]) => (
+        {([['inbox', 'Inbox'], ['bookmarks', 'Bookmarks'], ['feeds', 'Feeds'], ['library', 'Library'], ['subscriptions', 'Subscriptions'], ['import', 'Import'], ['search', 'Search']] as const).map(([t, label]) => (
           <button key={t} className={tab === t ? 'nav on' : 'nav'} onClick={() => setTab(t)}>
             {label}
             {t === 'inbox' && state.pending > 0 && <span className="count">{state.pending}</span>}
@@ -86,6 +88,7 @@ export function Desk() {
         {tab === 'bookmarks' && <Bookmarks />}
         {tab === 'feeds' && <Feeds />}
         {tab === 'library' && <Library />}
+        {tab === 'import' && <ImportView />}
         {tab === 'subscriptions' && <Subscriptions />}
         {tab === 'search' && <Search />}
         {tab === 'settings' && <SettingsView />}
@@ -259,6 +262,7 @@ function SettingsView() {
         {message && <p className={message.ok ? 'okmsg' : 'error'} role="status">{message.text}</p>}
       </div>
       <AiPanel settings={settings} onChange={set} />
+      <EmailPanel settings={settings} onChange={set} />
       <div className="panel">
         <h2>Browser extension</h2>
         <p className="muted">Paste this token into the extension's options page. It lets the extension talk to Nib on this computer only.</p>

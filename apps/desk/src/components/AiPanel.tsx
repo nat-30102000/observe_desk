@@ -111,7 +111,20 @@ export function AiPanel({ settings, onChange }: Props) {
           </select>
         </label>
       </div>
-      <p className="muted small">Press Save at the top of Settings to keep the model, address and provider choices.</p>
+      <div className="three">
+        <label>
+          Voice notes use
+          <select value={settings.ai.voiceProvider ?? ''} onChange={(e) => onChange({ ai: { ...settings.ai, voiceProvider: (e.target.value || undefined) as ProviderId | undefined } })}>
+            <option value="">First of OpenAI or Gemini with a key</option>
+            {ready.filter((p) => p.id === 'openai' || p.id === 'gemini').map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+        </label>
+        <label>
+          OpenAI transcription model
+          <input value={settings.ai.transcribeModel ?? ''} placeholder="whisper-1" onChange={(e) => onChange({ ai: { ...settings.ai, transcribeModel: e.target.value } })} />
+        </label>
+      </div>
+      <p className="muted small">Speech to text works with OpenAI and Gemini only. The other providers have no audio input here. Press Save at the top of Settings to keep these choices.</p>
     </div>
   );
 }

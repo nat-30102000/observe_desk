@@ -75,6 +75,16 @@ export function Pet() {
     return () => off();
   }, [flash]);
 
+  // Ctrl+Alt+V: open Quick add on the Voice tab and start recording.
+  useEffect(() => {
+    let off = () => undefined as void;
+    void listenNative<void>('hotkey-voice', async () => {
+      await emitBus('quickadd:prefill', { voice: true });
+      await showWindow('quickadd');
+    }).then((u) => (off = u));
+    return () => off();
+  }, []);
+
   // Ctrl+Alt+H: read the clipboard and open quick-add with it.
   useEffect(() => {
     let off = () => undefined as void;
@@ -142,6 +152,7 @@ export function Pet() {
       {menuOpen && (
         <nav className="pet-menu" aria-label="Nib menu">
           <button className="pill primary" onClick={go(() => showWindow('quickadd'))}>+ Quick add</button>
+          <button className="pill" onClick={go(async () => { await emitBus('quickadd:prefill', { voice: true }); await showWindow('quickadd'); })}>Voice note</button>
           {isTauri() && <button className="pill" onClick={go(async () => snip())}>Snip a screenshot</button>}
           <button className="pill" onClick={go(() => showWindow('desk'))}>Open the Desk</button>
           <button

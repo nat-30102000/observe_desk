@@ -13,6 +13,7 @@ import {
 } from '@observe/core';
 import { emitBus, fileStore, getSecret, listenBus, listenNative, loadJson, obsidianFetch, saveJson } from './platform';
 import { FeedService } from './feedService';
+import { pollMail } from './mailService';
 import { DEFAULT_SETTINGS, INITIAL_STATE, type AppState, type QueuedSummary, type Settings } from './state';
 
 export const KEY_SECRET = 'obsidian-api-key';
@@ -35,6 +36,7 @@ export async function loadSettings(): Promise<Settings> {
     ...saved,
     folders: { ...DEFAULT_SETTINGS.folders, ...saved?.folders },
     ai: { providers: {}, ...saved?.ai },
+    email: { ...DEFAULT_SETTINGS.email, ...saved?.email },
   };
 }
 
@@ -97,7 +99,8 @@ export class AppService {
     await this.reloadSettings();
     this.unlisten.push(
       await listenBus<Capture>('capture', (c) => void this.capture(c)),
-      await listenBus<void>('settings-changed', () => void this.reloadSettings().then(() => this.sync())),
+      await listenBus<Capture[]>('capture-batch', (cs) => void this.captureMany(cs)),
+      await listenBus<void>('settings-changed', () => void this.reloadSettings().then(() => this.sync()).then(() => this.checkMail())),
       await listenBus<void>('sync', () => void this.sync()),
       await listenBus<void>('retry-failed', () => void this.queue.retryFailed().then(() => this.sync())),
       await listenBus<void>('subs-changed', () => void this.checkReminders()),
@@ -114,11 +117,13 @@ export class AppService {
     this.seenReminders = new Set((await loadJson<string[]>('reminders-seen')) ?? []);
     this.reminderTimer = setInterval(() => void this.checkReminders(), REMINDER_EVERY_MS);
     void this.checkReminders();
+    void this.checkMail();
   }
 
   stop(): void {
     if (this.timer) clearInterval(this.timer);
     if (this.reminderTimer) clearInterval(this.reminderTimer);
+    clearTimeout(this.mailTimer);
     this.feeds.stop();
     this.unlisten.forEach((u) => u());
   }
@@ -145,6 +150,39 @@ export class AppService {
     }
   }
 
+  /** Imports and mail: many captures, one save. */
+  async captureMany(cs: Capture[]): Promise<void> {
+    const added = await this.queue.enqueueMany(cs);
+    await this.refreshQueueView();
+    if (added > 0 && cs.length > 3) this.say(`Got ${added} items to file. This may take a little while.`);
+    await this.sync();
+  }
+
+  private mailBusy = false;
+  private mailTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** Checks the mailbox for forwarded mail and newsletters, then schedules the next check. */
+  async checkMail(): Promise<void> {
+    clearTimeout(this.mailTimer);
+    const cfg = this.settings.email;
+    if (!cfg.enabled || this.mailBusy) return void this.scheduleMail();
+    this.mailBusy = true;
+    try {
+      const r = await pollMail(cfg, (found) => this.captureMany(found));
+      if (r.captures.length > 0) this.say(`You've got mail! ${r.captures.length} new ${r.captures.length === 1 ? 'note' : 'notes'} from your inbox.`);
+    } catch (e) {
+      this.say(`I could not read your mailbox: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      this.mailBusy = false;
+      this.scheduleMail();
+    }
+  }
+
+  private scheduleMail(): void {
+    clearTimeout(this.mailTimer);
+    if (this.settings.email.enabled) this.mailTimer = setTimeout(() => void this.checkMail(), Math.max(1, this.settings.email.everyMinutes) * 60_000);
+  }
+
   async capture(c: Capture): Promise<void> {
     await this.queue.enqueue(c);
     await this.refreshQueueView();
@@ -160,14 +198,38 @@ export class AppService {
     });
   }
 
+  private syncing = false;
+  private syncAgain = false;
+
   async sync(): Promise<void> {
+    // A long import keeps one sync busy; ask for another pass afterwards instead of stacking calls.
+    if (this.syncing) {
+      this.syncAgain = true;
+      return;
+    }
+    this.syncing = true;
+    try {
+      await this.syncOnce();
+    } finally {
+      this.syncing = false;
+      if (this.syncAgain) {
+        this.syncAgain = false;
+        void this.sync();
+      }
+    }
+  }
+
+  private async syncOnce(): Promise<void> {
     if (!this.client) {
       await this.refreshQueueView();
       this.publish({ configured: false, connected: false });
       return;
     }
     try {
-      const r = await this.queue.flush(this.client, this.settings.folders, { files: fileStore });
+      const r = await this.queue.flush(this.client, this.settings.folders, { files: fileStore }, (done, total) => {
+        // Show a long import moving without redrawing for every item.
+        if (done % 25 === 0) this.publish({ pending: Math.max(0, total - done) });
+      });
       let connected = !r.offline && !r.authError;
       let offline = r.offline;
       let authError = r.authError;

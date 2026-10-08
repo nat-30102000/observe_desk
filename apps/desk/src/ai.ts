@@ -6,6 +6,8 @@ import {
   listModels,
   ocrMessages,
   parseTags,
+  transcribeOpenAi,
+  transcribeViaChat,
   providerInfo,
   summarizeMessages,
   tagMessages,
@@ -95,6 +97,35 @@ export async function readTextWithAi(settings: Settings, mime: string, bytes: Ui
   void emitBus('pet:mood', { mood: 'thinking', ms: 90_000 });
   try {
     const text = await chat(aiFetch, callFor(settings, provider), key, ocrMessages({ mime, base64: toBase64(bytes) }), 2000);
+    void emitBus('pet:mood', { mood: null });
+    return { text, provider };
+  } catch (e) {
+    void emitBus('pet:mood', { mood: 'worried', ms: 4000 });
+    throw e;
+  }
+}
+
+const VOICE_PROVIDERS: ProviderId[] = ['openai', 'gemini'];
+
+/** Which provider turns speech into text: the chosen one if it can and has a key, else the first that can. */
+export async function voiceProviderFor(settings: Settings): Promise<ProviderId | null> {
+  const ready = (await readyProviders()).filter((p) => VOICE_PROVIDERS.includes(p));
+  const chosen = settings.ai.voiceProvider;
+  return chosen && ready.includes(chosen) ? chosen : (ready[0] ?? null);
+}
+
+/** Speech to text. Sends the recording to the chosen provider. */
+export async function transcribeAudio(settings: Settings, wav: Uint8Array): Promise<{ text: string; provider: ProviderId }> {
+  const provider = await voiceProviderFor(settings);
+  const key = provider ? await getAiKey(provider) : null;
+  if (!provider || !key) throw new AiError('auth', 'Add an OpenAI or Gemini key in Settings to turn voice notes into text.');
+  void emitBus('pet:mood', { mood: 'thinking', ms: 120_000 });
+  try {
+    const call = callFor(settings, provider);
+    const text =
+      provider === 'openai'
+        ? await transcribeOpenAi(aiFetch, { ...call, model: settings.ai.transcribeModel?.trim() || 'whisper-1' }, key, wav)
+        : await transcribeViaChat(aiFetch, call, key, wav);
     void emitBus('pet:mood', { mood: null });
     return { text, provider };
   } catch (e) {

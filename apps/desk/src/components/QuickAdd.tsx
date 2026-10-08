@@ -5,14 +5,16 @@ import { emitBus, hideWindow, listenBus, removeStaged, stageFile } from '../plat
 import { loadSettings } from '../service';
 import { FilePanel, type Staged } from './FilePanel';
 import { ImportPanel, importKind, type Imported } from './ImportPanel';
+import { VoicePanel, type VoiceDraft } from './VoicePanel';
 
 type Kind = 'highlight' | 'markdown' | 'bookmark';
-type Tab = Kind | 'file' | 'import';
+type Tab = Kind | 'file' | 'import' | 'voice';
 const TABS: Array<{ kind: Tab; label: string }> = [
   { kind: 'highlight', label: 'Highlight' },
   { kind: 'markdown', label: 'Markdown' },
   { kind: 'bookmark', label: 'Bookmark' },
   { kind: 'file', label: 'File' },
+  { kind: 'voice', label: 'Voice' },
   { kind: 'import', label: 'Video or thread' },
 ];
 const MAX_FILE = 50 * 1024 * 1024;
@@ -50,6 +52,8 @@ export function QuickAdd() {
   const [fileText, setFileText] = useState('');
   const [importUrl, setImportUrl] = useState('');
   const [imported, setImported] = useState<Imported | null>(null);
+  const [voice, setVoice] = useState<VoiceDraft | null>(null);
+  const [autoRecord, setAutoRecord] = useState(false);
   const [text, setText] = useState('');
   const [url, setUrl] = useState('');
   const [title, setTitle] = useState('');
@@ -89,6 +93,8 @@ export function QuickAdd() {
     setFileText('');
     setImportUrl('');
     setImported(null);
+    setVoice(null);
+    setAutoRecord(false);
   };
 
   const stage = async (file: File) => {
@@ -108,8 +114,13 @@ export function QuickAdd() {
 
   useEffect(() => {
     let off = () => undefined as void;
-    void listenBus<{ text?: string; screenshot?: Staged }>('quickadd:prefill', ({ text: t, screenshot }) => {
+    void listenBus<{ text?: string; screenshot?: Staged; voice?: boolean }>('quickadd:prefill', ({ text: t, screenshot, voice: wantsVoice }) => {
       reset();
+      if (wantsVoice) {
+        setTab('voice');
+        setAutoRecord(true);
+        return;
+      }
       if (screenshot) {
         setTab('file');
         setStaged({ ...screenshot, autoOcr: true });
@@ -132,9 +143,18 @@ export function QuickAdd() {
 
   const save = async () => {
     const base = { id: newId(), createdAt: new Date().toISOString(), tags: parseTags(tags) };
-    let result: Capture | string;
+    let result: Capture | string = '';
     if (tab === 'file') {
       result = staged ? { ...base, id: staged.id, kind: 'file', name: staged.name.trim() || 'File', mime: staged.mime, size: staged.size, text: fileText.trim() || undefined } : 'Choose a file first.';
+    } else if (tab === 'voice') {
+      if (!voice) result = 'Record something first.';
+      else if (voice.keep) {
+        const id = newId();
+        const name = `Voice note ${stamp()}.wav`;
+        await stageFile(id, voice.wav);
+        result = { ...base, id, tags: ['voice', ...base.tags], kind: 'file', name: voice.title.trim() ? `${voice.title.trim()}.wav` : name, mime: 'audio/wav', size: voice.wav.length, text: voice.text.trim() || undefined };
+      } else if (!voice.text.trim()) result = 'There is no text to save. Turn the recording into text or type something.';
+      else result = { ...base, tags: ['voice', ...base.tags], kind: 'markdown', title: voice.title.trim() || `Voice note ${stamp()}`, body: voice.text.trim() };
     } else if (tab === 'import') {
       result = imported && imported.body.trim() ? { ...base, kind: 'markdown', title: imported.title.trim() || 'Imported note', body: imported.body, tags: [...imported.tags, ...base.tags] } : 'Fetch the video or thread first.';
     } else result = buildCapture(kind, { text, url, title, note, tags });
@@ -150,7 +170,7 @@ export function QuickAdd() {
     void hideWindow('quickadd');
   };
 
-  const simple = tab !== 'file' && tab !== 'import';
+  const simple = tab !== 'file' && tab !== 'import' && tab !== 'voice';
   const needsText = kind !== 'bookmark';
   const needsUrl = kind !== 'markdown';
 
@@ -186,6 +206,7 @@ export function QuickAdd() {
         ))}
       </div>
       {tab === 'file' && <FilePanel staged={staged} text={fileText} onText={setFileText} onName={(name) => staged && setStaged({ ...staged, name })} onPick={(f) => void stage(f)} onClear={() => { if (staged) void removeStaged(staged.id); setStaged(null); setFileText(''); }} />}
+      {tab === 'voice' && <VoicePanel draft={voice} onChange={setVoice} autoStart={autoRecord} />}
       {tab === 'import' && <ImportPanel url={importUrl} onUrl={setImportUrl} imported={imported} onImported={setImported} />}
       {simple && needsText && (
         <label>

@@ -65,5 +65,10 @@ Desk > Library > **Open a PDF or EPUB** (up to 200 MB). Books reopen where you l
 - **Threads:** Reddit, Hacker News, Mastodon and Bluesky links become a note with the post and replies. X (Twitter) cannot be read without logging in, so use the browser extension there.
 - Pasting or dropping a YouTube or thread link on Nib opens Quick add ready to fetch it.
 
+## Phase 4: voice notes, email, imports
+- **Voice notes:** `Ctrl+Alt+V` or Nib's menu > Voice note. It records from your microphone (up to 10 minutes), lets you listen back, and turns it into text with OpenAI (Whisper) or Gemini. Edit the text, then save it as a note, with or without the recording itself. Other AI providers have no audio input here.
+- **Email and newsletters:** Settings > Email. Give Nib an IMAP mailbox that is only for this (a new address with an app password), then forward emails or subscribe newsletters to it. New mail becomes a note in Notes with the sender, date and subject. Nib only reads: nothing is deleted, moved or marked read. Pictures are never downloaded. Optional sender allow-list. The first connection starts from now unless you tick "also import existing mail".
+- **Import:** Desk > Import takes a Readwise CSV, Kindle `My Clippings.txt`, or a Pocket export (HTML or CSV). Highlights go into one note per book (with notes and locations), Pocket links become bookmarks with their tags and read state. Re-importing the same file adds nothing twice.
+
 ## How data is stored
 The vault is the source of truth. One note per source in `Clippings/` (highlights appended with block ids, so retries never duplicate), bookmarks in `Bookmarks/`, notes in `Notes/`. The app only keeps the pending queue and settings in its app-data folder; the API key is kept in Windows Credential Manager.

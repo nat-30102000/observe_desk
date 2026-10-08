@@ -1,8 +1,40 @@
 import { DEFAULT_FOLDERS, type Folders, type ProviderId } from '@observe/core';
 
+export interface EmailSettings {
+  enabled: boolean;
+  host: string;
+  port: number;
+  /** Encrypted connection (recommended). Only a mail server on this computer may turn it off. */
+  tls: boolean;
+  username: string;
+  folder: string;
+  /** Minutes between checks. */
+  everyMinutes: number;
+  /** Only mail from these addresses or domains becomes a note. Empty allows everyone. */
+  allowFrom: string[];
+  /** On first connection, also import what is already in the mailbox. */
+  importExisting: boolean;
+}
+
+export const DEFAULT_EMAIL: EmailSettings = {
+  enabled: false,
+  host: '',
+  port: 993,
+  tls: true,
+  username: '',
+  folder: 'INBOX',
+  everyMinutes: 5,
+  allowFrom: [],
+  importExisting: false,
+};
+
 export interface AiSettings {
   summaryProvider?: ProviderId;
   tagProvider?: ProviderId;
+  /** Which provider turns voice notes into text (OpenAI or Gemini). */
+  voiceProvider?: ProviderId;
+  /** Model for OpenAI's transcription endpoint. */
+  transcribeModel?: string;
   /** Per-provider overrides. The API key itself lives in the secret store, never here. */
   providers: Partial<Record<ProviderId, { model?: string; baseUrl?: string }>>;
 }
@@ -11,12 +43,14 @@ export interface Settings {
   baseUrl: string;
   folders: Folders;
   ai: AiSettings;
+  email: EmailSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   baseUrl: 'https://127.0.0.1:27124',
   folders: DEFAULT_FOLDERS,
   ai: { providers: {} },
+  email: DEFAULT_EMAIL,
 };
 
 export interface RecentItem {
