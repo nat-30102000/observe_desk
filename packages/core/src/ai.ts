@@ -27,9 +27,17 @@ export const PROVIDERS: ProviderInfo[] = [
 
 export const providerInfo = (id: ProviderId): ProviderInfo => PROVIDERS.find((p) => p.id === id) as ProviderInfo;
 
+export interface ChatImage {
+  mime: string;
+  /** Base64 without the data: prefix. */
+  base64: string;
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+  /** Attached to user messages for vision models (OCR). */
+  images?: ChatImage[];
 }
 
 export interface ProviderCall {
@@ -58,7 +66,13 @@ export function buildChat(call: ProviderCall, apiKey: string, messages: ChatMess
         model: call.model,
         max_tokens: maxTokens,
         ...(system ? { system } : {}),
-        messages: messages.filter((m) => m.role !== 'system'),
+        messages: messages
+          .filter((m) => m.role !== 'system')
+          .map((m) =>
+            m.images?.length
+              ? { role: m.role, content: [...m.images.map((i) => ({ type: 'image', source: { type: 'base64', media_type: i.mime, data: i.base64 } })), { type: 'text', text: m.content }] }
+              : { role: m.role, content: m.content },
+          ),
       }),
     };
   }
@@ -66,7 +80,12 @@ export function buildChat(call: ProviderCall, apiKey: string, messages: ChatMess
     return {
       url: `${base}/api/chat`,
       headers: { ...json, Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ model: call.model, messages, stream: false, options: { num_predict: maxTokens } }),
+      body: JSON.stringify({
+        model: call.model,
+        messages: messages.map((m) => (m.images?.length ? { role: m.role, content: m.content, images: m.images.map((i) => i.base64) } : { role: m.role, content: m.content })),
+        stream: false,
+        options: { num_predict: maxTokens },
+      }),
     };
   }
   // OpenAI's own newer models reject max_tokens; other OpenAI-compatible hosts still expect it.
@@ -74,7 +93,15 @@ export function buildChat(call: ProviderCall, apiKey: string, messages: ChatMess
   return {
     url: `${base}/chat/completions`,
     headers: { ...json, Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({ model: call.model, messages, ...limit }),
+    body: JSON.stringify({
+      model: call.model,
+      messages: messages.map((m) =>
+        m.images?.length
+          ? { role: m.role, content: [{ type: 'text', text: m.content }, ...m.images.map((i) => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.base64}` } }))] }
+          : { role: m.role, content: m.content },
+      ),
+      ...limit,
+    }),
   };
 }
 

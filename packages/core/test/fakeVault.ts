@@ -3,6 +3,8 @@ import type { FetchInit, FetchLike, FetchResponse } from '../src/obsidian';
 /** In-memory stand-in for the Obsidian Local REST API. */
 export class FakeVault {
   files = new Map<string, string>();
+  binaries = new Map<string, Uint8Array>();
+  contentTypes = new Map<string, string>();
   online = true;
   key = 'secret';
   calls: string[] = [];
@@ -32,7 +34,11 @@ export class FakeVault {
         this.failWrites--;
         return res(500, 'boom');
       }
-      if (init.method === 'PUT') this.files.set(path, init.body ?? '');
+      if (init.method === 'PUT' && init.bodyBytes) {
+        this.binaries.set(path, init.bodyBytes);
+        this.contentTypes.set(path, init.headers['Content-Type'] ?? '');
+        this.files.set(path, `[binary ${init.bodyBytes.length} bytes]`);
+      } else if (init.method === 'PUT') this.files.set(path, init.body ?? '');
       else this.files.set(path, (this.files.get(path) ?? '') + (init.body ?? ''));
       return res(204);
     }

@@ -1,5 +1,5 @@
 import { toFrontmatter } from './frontmatter';
-import type { BookmarkCapture, HighlightCapture, MarkdownCapture } from './types';
+import type { BookmarkCapture, FileCapture, HighlightCapture, MarkdownCapture } from './types';
 
 export const blockId = (id: string): string => `h-${id}`;
 
@@ -51,4 +51,21 @@ export function renderMarkdownNote(c: MarkdownCapture): string {
     tags: c.tags,
   });
   return `${fm}\n${c.body.trim()}\n`;
+}
+
+const EMBEDDABLE = /\.(png|jpe?g|gif|webp|svg|bmp|pdf|mp3|wav|ogg|m4a|mp4|webm|mov)$/i;
+
+/** Note that shows a dropped file: an embed (or a link for other types) plus any text. */
+export function renderFileNote(c: FileCapture, attachmentPath: string): string {
+  const fm = toFrontmatter({
+    type: 'attachment',
+    capture_id: c.id,
+    file: attachmentPath,
+    mime: c.mime,
+    size: c.size,
+    captured: day(c.createdAt),
+    tags: ['attachments', ...c.tags.filter((t) => t !== 'attachments')],
+  });
+  const link = `${EMBEDDABLE.test(attachmentPath) ? '!' : ''}[[${attachmentPath}]]`;
+  return `${fm}\n${link}\n${c.text?.trim() ? `\n${c.text.trim()}\n` : ''}`;
 }

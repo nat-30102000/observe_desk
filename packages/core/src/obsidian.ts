@@ -4,6 +4,8 @@ export interface FetchInit {
   method: string;
   headers: Record<string, string>;
   body?: string;
+  /** Raw bytes (attachments). Takes precedence over `body`. */
+  bodyBytes?: Uint8Array;
   signal?: AbortSignal;
 }
 
@@ -46,7 +48,7 @@ export class ObsidianClient {
   private async request(
     method: string,
     path: string,
-    opts: { body?: string; contentType?: string; accept?: string } = {},
+    opts: { body?: string; bodyBytes?: Uint8Array; contentType?: string; accept?: string } = {},
   ): Promise<FetchResponse> {
     const headers: Record<string, string> = {
       Authorization: `Bearer ${this.config.apiKey}`,
@@ -62,6 +64,7 @@ export class ObsidianClient {
         method,
         headers,
         body: opts.body,
+        bodyBytes: opts.bodyBytes,
         signal: controller.signal,
       });
     } catch (e) {
@@ -110,6 +113,12 @@ export class ObsidianClient {
       body: content,
       contentType: 'text/markdown',
     });
+    await this.expectOk(res);
+  }
+
+  /** Create or replace a binary file (image, pdf...). */
+  async putBinary(path: string, bytes: Uint8Array, contentType = 'application/octet-stream'): Promise<void> {
+    const res = await this.request('PUT', `/vault/${encodeVaultPath(path)}`, { bodyBytes: bytes, contentType });
     await this.expectOk(res);
   }
 

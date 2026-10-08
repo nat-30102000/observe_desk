@@ -36,13 +36,27 @@ export interface MarkdownCapture extends CaptureBase {
   body: string;
 }
 
-export type Capture = HighlightCapture | BookmarkCapture | MarkdownCapture;
+/** A dropped or pasted file or image. The bytes wait in a staging area outside the queue file. */
+export interface FileCapture extends CaptureBase {
+  kind: 'file';
+  name: string;
+  mime: string;
+  size: number;
+  /** Text to put under the embedded file, e.g. OCR output or a caption. */
+  text?: string;
+  /** Chosen on the first write attempt and kept, so retries overwrite the same file. */
+  attachmentPath?: string;
+  notePath?: string;
+}
+
+export type Capture = HighlightCapture | BookmarkCapture | MarkdownCapture | FileCapture;
 
 export interface Folders {
   clippings: string;
   bookmarks: string;
   notes: string;
   subscriptions: string;
+  attachments: string;
 }
 
 export const DEFAULT_FOLDERS: Folders = {
@@ -50,6 +64,7 @@ export const DEFAULT_FOLDERS: Folders = {
   bookmarks: 'Bookmarks',
   notes: 'Notes',
   subscriptions: 'Subscriptions',
+  attachments: 'Attachments',
 };
 
 export function newId(): string {

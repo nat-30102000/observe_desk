@@ -1,7 +1,7 @@
 import { AuthError, HttpError, OfflineError } from './errors';
 import type { ObsidianClient } from './obsidian';
 import type { Capture, Folders } from './types';
-import { writeCapture, type WriteResult } from './writer';
+import { writeCapture, type WriteDeps, type WriteResult } from './writer';
 
 export const MAX_ATTEMPTS = 5;
 
@@ -82,7 +82,7 @@ export class CaptureQueue {
   }
 
   /** Write queued captures to the vault in order. Stops at the first connection or key problem. */
-  flush(client: ObsidianClient, folders: Folders): Promise<FlushResult> {
+  flush(client: ObsidianClient, folders: Folders, deps: WriteDeps = {}): Promise<FlushResult> {
     return this.exclusive(async () => {
       const items = await this.storage.load();
       const written: FlushResult['written'] = [];
@@ -97,7 +97,7 @@ export class CaptureQueue {
           continue;
         }
         try {
-          const res = await writeCapture(client, folders, item.capture);
+          const res = await writeCapture(client, folders, item.capture, deps);
           written.push({ ...res, id: item.capture.id });
         } catch (e) {
           if (e instanceof OfflineError) offline = true;

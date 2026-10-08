@@ -1,8 +1,18 @@
 import { parseFrontmatter } from './frontmatter';
-import { blockId, renderBookmark, renderHighlight, renderMarkdownNote, renderSourceNote } from './notes';
+import { blockId, renderBookmark, renderFileNote, renderHighlight, renderMarkdownNote, renderSourceNote } from './notes';
 import type { ObsidianClient } from './obsidian';
 import { hostOf, joinPath, sanitizeFileName } from './paths';
 import type { Capture, Folders } from './types';
+
+/** Where dropped files wait until Obsidian is reachable. */
+export interface FileStore {
+  read(id: string): Promise<Uint8Array>;
+  remove(id: string): Promise<void>;
+}
+
+export interface WriteDeps {
+  files?: FileStore;
+}
 
 export type WriteAction = 'created' | 'appended' | 'unchanged';
 export interface WriteResult {
@@ -37,8 +47,31 @@ export async function writeCapture(
   client: ObsidianClient,
   folders: Folders,
   c: Capture,
+  deps: WriteDeps = {},
 ): Promise<WriteResult> {
   switch (c.kind) {
+    case 'file': {
+      if (!deps.files) throw new Error('No file store available for attachments.');
+      // Pick names once and remember them on the capture, so a retry overwrites instead of duplicating.
+      if (!c.attachmentPath) {
+        const taken = new Set((await client.listDir(folders.attachments)).map((n) => n.toLowerCase()));
+        const dot = c.name.lastIndexOf('.');
+        const ext = dot > 0 ? c.name.slice(dot).toLowerCase() : '';
+        const base = sanitizeFileName(dot > 0 ? c.name.slice(0, dot) : c.name);
+        const plain = `${base}${ext}`;
+        c.attachmentPath = joinPath(folders.attachments, taken.has(plain.toLowerCase()) ? `${base} (${c.id})${ext}` : plain);
+      }
+      if (!c.notePath) {
+        const noteBase = sanitizeFileName(c.name.replace(/\.[^.]+$/, ''));
+        const { path } = await resolvePath(client, folders.notes, noteBase, c.id, (e) => parseFrontmatter(e).data['capture_id'] === c.id);
+        c.notePath = path;
+      }
+      const bytes = await deps.files.read(c.id);
+      await client.putBinary(c.attachmentPath, bytes, c.mime || 'application/octet-stream');
+      await client.putNote(c.notePath, renderFileNote(c, c.attachmentPath));
+      await deps.files.remove(c.id).catch(() => undefined);
+      return { path: c.notePath, action: 'created' };
+    }
     case 'highlight': {
       const { path, existing } = await resolvePath(
         client,
