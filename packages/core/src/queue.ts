@@ -99,7 +99,7 @@ export class CaptureQueue {
   }
 
   /** Write queued captures to the vault in order. Stops at the first connection or key problem. */
-  flush(client: ObsidianClient, folders: Folders, deps: WriteDeps = {}): Promise<FlushResult> {
+  flush(client: ObsidianClient, folders: Folders, deps: WriteDeps = {}, onProgress?: (done: number, total: number) => void): Promise<FlushResult> {
     return this.exclusive(async () => {
       const items = await this.storage.load();
       const written: FlushResult['written'] = [];
@@ -116,6 +116,7 @@ export class CaptureQueue {
         try {
           const res = await writeCapture(client, folders, item.capture, deps);
           written.push({ ...res, id: item.capture.id });
+          onProgress?.(written.length, items.length);
         } catch (e) {
           if (e instanceof OfflineError) offline = true;
           else if (e instanceof AuthError) authError = true;

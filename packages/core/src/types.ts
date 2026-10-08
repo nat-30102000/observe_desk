@@ -36,6 +36,8 @@ export interface MarkdownCapture extends CaptureBase {
   kind: 'markdown';
   title: string;
   body: string;
+  /** Extra frontmatter, e.g. email sender and subject. Keys are limited to a-z, 0-9 and underscore. */
+  meta?: Record<string, string>;
 }
 
 /** A dropped or pasted file or image. The bytes wait in a staging area outside the queue file. */

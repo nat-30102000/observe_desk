@@ -90,3 +90,27 @@ describe('enqueueMany', () => {
     expect(await q.pendingCount()).toBe(3);
   });
 });
+
+import { DEFAULT_FOLDERS, ObsidianClient, parseFrontmatter, writeCapture } from '../src';
+import { FakeVault } from './fakeVault';
+
+describe('markdown meta and progress', () => {
+  it('writes extra frontmatter safely', async () => {
+    const vault = new FakeVault();
+    const client = new ObsidianClient({ baseUrl: 'https://x', apiKey: 'secret' }, vault.fetch);
+    const r = await writeCapture(client, DEFAULT_FOLDERS, { kind: 'markdown', id: 'm1', createdAt: '2026-10-08T00:00:00Z', tags: ['email'], title: 'Hello', body: 'Body', meta: { from: 'a@b.com', subject: 'Re: hi\nevil: yes', 'Bad Key': 'x', type: 'hacked', capture_id: 'nope' } });
+    const { data } = parseFrontmatter(vault.files.get(r.path) as string);
+    expect(data).toMatchObject({ type: 'note', capture_id: 'm1', from: 'a@b.com', subject: 'Re: hi evil: yes' });
+    expect(data['Bad Key']).toBeUndefined();
+    expect(Object.keys(data)).not.toContain('evil');
+  });
+  it('reports progress while flushing', async () => {
+    const vault = new FakeVault();
+    const client = new ObsidianClient({ baseUrl: 'https://x', apiKey: 'secret' }, vault.fetch);
+    const q = new CaptureQueue(new MemoryStorage());
+    await q.enqueueMany([1, 2, 3].map((n) => ({ kind: 'bookmark' as const, id: `b${n}`, createdAt: '2026-10-08T00:00:00Z', tags: [], url: `https://a.com/${n}`, title: `T${n}` })));
+    const seen: number[] = [];
+    await q.flush(client, DEFAULT_FOLDERS, {}, (done, total) => seen.push(done * 10 + total));
+    expect(seen).toEqual([13, 23, 33]);
+  });
+});

@@ -1,4 +1,5 @@
 mod bridge;
+mod mail;
 mod snip;
 mod staging;
 mod storage;
@@ -279,6 +280,7 @@ pub fn run() {
             http_get,
             http_request,
             read_book,
+            mail::imap_fetch,
             snip::snip_start,
             snip::snip_image,
             snip::snip_close,

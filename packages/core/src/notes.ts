@@ -43,10 +43,22 @@ export function renderBookmark(c: BookmarkCapture): string {
   return `${fm}\n# ${c.title}\n\n<${c.url}>\n${c.description ? `\n${c.description}\n` : ''}`;
 }
 
+const RESERVED_KEYS = new Set(['type', 'capture_id', 'captured', 'tags']);
+
+/** Frontmatter from untrusted headers: plain keys only, no clashes with our own, no line breaks. */
+function safeMeta(meta: Record<string, string> | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(meta ?? {})) {
+    if (/^[a-z][a-z0-9_]{0,30}$/.test(k) && !RESERVED_KEYS.has(k)) out[k] = String(v).replace(/[\r\n]+/g, ' ').slice(0, 300);
+  }
+  return out;
+}
+
 export function renderMarkdownNote(c: MarkdownCapture): string {
   const fm = toFrontmatter({
     type: 'note',
     capture_id: c.id,
+    ...safeMeta(c.meta),
     captured: day(c.createdAt),
     tags: c.tags,
   });
