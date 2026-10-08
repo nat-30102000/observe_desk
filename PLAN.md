@@ -26,7 +26,7 @@ GPT (OpenAI), Claude, Grok (xAI), Gemini, NVIDIA NIM, OpenCode, Ollama **Cloud**
 ## 1b. Product shape update: the desktop pet "Nib"
 The primary surface is a small always-on-top animated pet (working name **Nib**, an ink-drop creature), not a big window.
 - Drag text, links, images or files onto Nib to capture; select text + Ctrl Alt H to highlight; click Nib for a menu (Quick add, Bookmarks, Feeds, Subscriptions, Settings).
-- Moods: Idle, Curious (text selected), Nom nom (drop), Sleepy (Obsidian closed, queue pending), Reminder (renewal soon), Happy (synced). Speech bubbles fade after a few seconds.
+- Moods (12): Idle, Curious (text selected), Nom nom (drop), Sleepy (Obsidian closed), Reminder (renewal soon), Happy (synced), Thinking (AI working), Listening (voice note), Worried (sync or key error), Say cheese (screenshot/OCR), Newsflash (new feed items), Chill (do not disturb). Speech bubbles fade after a few seconds.
 - Draggable, snaps to screen edges, hides to tray (Ctrl Alt N), hides during full-screen apps, honours Windows reduced motion.
 - The big "Desk" window (Inbox, Bookmarks, Feeds, Subscriptions, Settings) opens from Nib.
 - Theme: light, playful (cream, pink, lilac, mint, sun yellow; Fredoka headings, Nunito body).
