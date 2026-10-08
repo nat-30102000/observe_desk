@@ -11,3 +11,5 @@ export * from './extension';
 export * from './feeds';
 export * from './subscriptions';
 export * from './search';
+export * from './ai';
+export * from './ai-tasks';
