@@ -11,6 +11,7 @@ export function renderSourceNote(c: HighlightCapture): string {
     url: c.source.url,
     title: c.source.title,
     ...(c.source.author ? { author: c.source.author } : {}),
+    ...(c.source.format ? { format: c.source.format } : {}),
     captured: day(c.createdAt),
     tags: ['clippings', ...c.tags.filter((t) => t !== 'clippings')],
   });
@@ -24,8 +25,9 @@ export function renderHighlight(c: HighlightCapture): string {
     .split(/\r?\n/)
     .map((line) => `> ${line}`)
     .join('\n');
+  const where = c.location?.trim() ? `\n*${c.location.trim().replace(/[*\r\n]+/g, ' ')}*\n` : '';
   const note = c.note?.trim() ? `\n${c.note.trim()}\n` : '';
-  return `\n${quote} ^${blockId(c.id)}\n${note}`;
+  return `\n${quote} ^${blockId(c.id)}\n${where}${note}`;
 }
 
 export function renderBookmark(c: BookmarkCapture): string {

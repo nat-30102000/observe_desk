@@ -224,3 +224,14 @@ describe('captureFromExtension', () => {
     expect(captureFromExtension('x')).toBeNull();
   });
 });
+
+describe('book highlights', () => {
+  it('records the format and where in the book the quote came from', async () => {
+    const { vault, client } = setup();
+    const c: HighlightCapture = { ...highlight('bk000001'), source: { url: 'book://abc', title: 'The Slow Book', author: 'Mara', format: 'pdf' }, location: 'p. 12', note: 'Key idea' };
+    const r = await writeCapture(client, DEFAULT_FOLDERS, c);
+    const note = vault.files.get(r.path) as string;
+    expect(parseFrontmatter(note).data).toMatchObject({ format: 'pdf', url: 'book://abc' });
+    expect(note).toContain('> Attention is trained, not given. ^h-bk000001\n\n*p. 12*\n\nKey idea');
+  });
+});

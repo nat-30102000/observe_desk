@@ -2,6 +2,8 @@ export interface Source {
   url: string;
   title: string;
   author?: string;
+  /** Set for books opened in the reader. */
+  format?: 'pdf' | 'epub';
 }
 
 interface CaptureBase {
@@ -17,6 +19,8 @@ export interface HighlightCapture extends CaptureBase {
   source: Source;
   text: string;
   note?: string;
+  /** Where in the source: "p. 12" for PDFs, a chapter title for EPUBs. */
+  location?: string;
 }
 
 export interface BookmarkCapture extends CaptureBase {
