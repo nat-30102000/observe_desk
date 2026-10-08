@@ -27,6 +27,7 @@ import { Library } from './Library';
 import { Nib } from './Nib';
 import { Reader } from './Reader';
 import { Search } from './Search';
+import { StartupPanel } from './StartupPanel';
 import { Subscriptions } from './Subscriptions';
 
 type Tab = 'inbox' | 'bookmarks' | 'feeds' | 'library' | 'subscriptions' | 'import' | 'search' | 'settings';
@@ -261,6 +262,7 @@ function SettingsView() {
         </div>
         {message && <p className={message.ok ? 'okmsg' : 'error'} role="status">{message.text}</p>}
       </div>
+      <StartupPanel />
       <AiPanel settings={settings} onChange={set} />
       <EmailPanel settings={settings} onChange={set} />
       <div className="panel">

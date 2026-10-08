@@ -278,3 +278,16 @@ export async function imapFetch(cfg: MailConfig, uidValidity: number | null, aft
   if (!isTauri()) throw new Error('Reading email is only available in the desktop app.');
   return invoke<MailBatch>('imap_fetch', { cfg, uidValidity, afterUid, limit });
 }
+
+// ---------- start with Windows ----------
+
+export async function autostartEnabled(): Promise<boolean> {
+  if (!isTauri()) return false;
+  const { isEnabled } = await import('@tauri-apps/plugin-autostart');
+  return isEnabled();
+}
+
+export async function setAutostart(on: boolean): Promise<void> {
+  const { enable, disable } = await import('@tauri-apps/plugin-autostart');
+  await (on ? enable() : disable());
+}

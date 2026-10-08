@@ -11,6 +11,9 @@
     "core:window:allow-set-focus",
     "clipboard-manager:allow-read-text",
     "opener:allow-open-url",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "autostart:allow-enable",
+    "autostart:allow-disable",
+    "autostart:allow-is-enabled"
   ]
 }

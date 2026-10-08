@@ -37,6 +37,7 @@ npm run tauri -w @observe/desk build  # Windows installer (NSIS)
 - Drop a link on Nib to bookmark it, or drop text to make a note.
 - `Ctrl+Alt+H`: copy something, press it, and Quick add opens with your clipboard.
 - `Ctrl+Alt+N`: show or hide Nib. The tray icon does the same.
+- **Start with Windows:** Desk > Settings > Startup. Only one copy runs at a time: opening the app again brings Nib and the Desk forward instead of starting a second copy.
 - If Obsidian is closed, captures wait in a local queue (Nib gets sleepy and shows a count) and are filed when it is back.
 
 ## Phase 2 features

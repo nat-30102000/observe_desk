@@ -63,7 +63,18 @@ npm run tauri -w @observe/desk build
 - [ ] Sleep/lock the PC and wake it: Nib is still there
 - [ ] If you use a high-DPI display or display scaling over 100%: Nib is not blurry or cut off, and the menu is fully visible
 
-Known gaps (not bugs to report, just things that do not exist yet): no start-with-Windows option, no check that only one copy is running (a second copy will fail to open its extension port), no auto-update, installer not code-signed.
+**Single copy**
+- [ ] With the app running, start it again (Start menu or the installed shortcut): no second Nib appears, and the Desk window comes to the front. Task Manager shows one `observe_desk.exe`
+- [ ] Hide Nib (`Ctrl+Alt+N`), start the app again: Nib comes back and the Desk opens
+- [ ] After **Quit** from the tray, starting the app works normally again
+
+**Start with Windows**
+- [ ] Desk > Settings > Startup: tick "Start Nib when I sign in to Windows". Task Manager > Startup apps (or `shell:startup` / the `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` registry key) lists observe_desk
+- [ ] Sign out and in (or restart): Nib appears by itself, the Desk stays closed, and the tray icon is there
+- [ ] Untick it: the entry disappears from Startup apps
+- [ ] Move or reinstall the app, then tick it again: it points at the new location
+
+Known gaps (not bugs to report, just things that do not exist yet): no auto-update, installer not code-signed.
 
 ## 3. Connect Obsidian
 

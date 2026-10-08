@@ -257,6 +257,14 @@ pub fn run() {
     let voice = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyV);
 
     tauri::Builder::default()
+        // Must come first: a second copy hands over to the running one and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            if let Some(pet) = app.get_webview_window("pet") {
+                let _ = pet.show();
+            }
+            reveal(app, "desk");
+        }))
+        .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         .manage(snip::SnipState::default())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
