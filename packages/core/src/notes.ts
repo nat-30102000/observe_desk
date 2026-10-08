@@ -37,7 +37,7 @@ export function renderBookmark(c: BookmarkCapture): string {
     title: c.title,
     ...(c.description ? { description: c.description } : {}),
     captured: day(c.createdAt),
-    read: false,
+    read: c.read ?? false,
     tags: ['bookmarks', ...c.tags.filter((t) => t !== 'bookmarks')],
   });
   return `${fm}\n# ${c.title}\n\n<${c.url}>\n${c.description ? `\n${c.description}\n` : ''}`;

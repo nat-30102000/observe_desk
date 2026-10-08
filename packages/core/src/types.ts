@@ -28,6 +28,8 @@ export interface BookmarkCapture extends CaptureBase {
   url: string;
   title: string;
   description?: string;
+  /** Imported bookmarks may already be read. */
+  read?: boolean;
 }
 
 export interface MarkdownCapture extends CaptureBase {
