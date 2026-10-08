@@ -8,6 +8,10 @@ edition = "2021"
 name = "observe_desk_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+# Set by `tauri build`: serve the bundled frontend instead of the dev server.
+custom-protocol = ["tauri/custom-protocol"]
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
