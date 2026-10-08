@@ -33,11 +33,19 @@ export interface ChatImage {
   base64: string;
 }
 
+export interface ChatAudio {
+  format: 'wav' | 'mp3';
+  /** Base64 without any prefix. */
+  base64: string;
+}
+
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
   /** Attached to user messages for vision models (OCR). */
   images?: ChatImage[];
+  /** Attached to user messages for audio-capable models (voice notes). OpenAI-style providers only. */
+  audio?: ChatAudio[];
 }
 
 export interface ProviderCall {
@@ -96,8 +104,15 @@ export function buildChat(call: ProviderCall, apiKey: string, messages: ChatMess
     body: JSON.stringify({
       model: call.model,
       messages: messages.map((m) =>
-        m.images?.length
-          ? { role: m.role, content: [{ type: 'text', text: m.content }, ...m.images.map((i) => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.base64}` } }))] }
+        m.images?.length || m.audio?.length
+          ? {
+              role: m.role,
+              content: [
+                { type: 'text', text: m.content },
+                ...(m.images ?? []).map((i) => ({ type: 'image_url', image_url: { url: `data:${i.mime};base64,${i.base64}` } })),
+                ...(m.audio ?? []).map((a) => ({ type: 'input_audio', input_audio: { data: a.base64, format: a.format } })),
+              ],
+            }
           : { role: m.role, content: m.content },
       ),
       ...limit,

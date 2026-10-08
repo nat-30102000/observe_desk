@@ -67,6 +67,23 @@ export class CaptureQueue {
     });
   }
 
+  /** Many captures with one save (imports can be thousands). Ids already queued are skipped. */
+  enqueueMany(captures: Capture[]): Promise<number> {
+    return this.exclusive(async () => {
+      const items = await this.storage.load();
+      const have = new Set(items.map((i) => i.capture.id));
+      let added = 0;
+      for (const capture of captures) {
+        if (have.has(capture.id)) continue;
+        have.add(capture.id);
+        items.push({ capture, attempts: 0 });
+        added++;
+      }
+      if (added > 0) await this.storage.save(items);
+      return added;
+    });
+  }
+
   /** Put failed items back in line. */
   retryFailed(): Promise<void> {
     return this.exclusive(async () => {
