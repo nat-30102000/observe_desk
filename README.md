@@ -52,7 +52,11 @@ Settings > AI helpers supports Claude, GPT, Grok, Gemini, NVIDIA NIM, OpenCode a
 - You choose which provider handles summaries and which handles tags. Text is sent only when you press a button. Keys live in Windows Credential Manager. Nib looks thoughtful while a request runs.
 - Endpoints: Claude (Messages API), Ollama Cloud (`/api/chat`), all others via the OpenAI chat-completions format. You can override any address.
 
-Not in yet: PDF/EPUB reader.
+## Library: PDF and EPUB
+Desk > Library > **Open a PDF or EPUB** (up to 200 MB). Books reopen where you left off.
+- **PDF:** one page at a time with selectable text, page jump, zoom, arrow keys to turn pages. Scanned PDFs have no text to select (OCR comes later).
+- **EPUB:** read by chapter with a contents list, text size and internal links. Content is sanitised; scripts never run.
+- **Highlights:** select text (add an optional note first or after), press **Highlight selection**. The quote goes to Obsidian as `Clippings/<book>.md` with the page (`p. 12`) or chapter, and your note. The Highlights panel lists them and jumps back to the spot. Password-protected PDFs and DRM-protected EPUBs are not supported.
 
 ## How data is stored
 The vault is the source of truth. One note per source in `Clippings/` (highlights appended with block ids, so retries never duplicate), bookmarks in `Bookmarks/`, notes in `Notes/`. The app only keeps the pending queue and settings in its app-data folder; the API key is kept in Windows Credential Manager.

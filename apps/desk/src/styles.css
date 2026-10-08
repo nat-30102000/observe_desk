@@ -167,3 +167,29 @@ td.mono { white-space: nowrap; }
 .tagrow { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .tagbtn { min-height: 32px; padding: 0 12px; border-radius: 16px; border: 2px solid var(--line-strong); background: var(--paper); font-weight: 600; font-size: 13px; }
 .tagbtn.on { background: var(--pink-tint); border-color: var(--pink-deep); }
+
+/* ---------- Library: PDF and EPUB ---------- */
+.spacer { flex: 1; }
+.viewer-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 10px; }
+.inline { flex-direction: row; align-items: center; gap: 6px; }
+.pageno { width: 64px; min-height: 36px; text-align: center; }
+.book-title { font-size: 20px !important; margin-right: 0 !important; }
+.hl-bar { display: flex; gap: 8px; margin-bottom: 8px; }
+.book-split { display: flex; gap: 16px; align-items: flex-start; }
+.book-main { flex: 1; min-width: 0; }
+.pdf { outline: none; }
+.pdf-stage { overflow: auto; max-height: calc(100vh - 230px); background: #e9dfcf; border-radius: 16px; padding: 16px; text-align: center; }
+.pdf-frame { position: relative; display: inline-block; background: #fff; box-shadow: 0 4px 14px rgba(43, 33, 64, 0.25); text-align: left; }
+.pdf-frame canvas { display: block; }
+.pdf-frame .textLayer { position: absolute; inset: 0; }
+.pdf-frame .textLayer ::selection { background: rgba(255, 201, 60, 0.55); }
+.epub-body { display: flex; gap: 12px; align-items: flex-start; }
+.epub-scroll { flex: 1; min-width: 0; max-height: calc(100vh - 230px); overflow: auto; background: var(--paper); border: 2px solid var(--line); border-radius: 18px; padding: 8px 32px 32px; }
+.epub-text { max-width: 720px; margin: 0 auto; }
+.toc { list-style: none; margin: 0; padding: 8px; width: 240px; max-height: calc(100vh - 230px); overflow: auto; background: var(--paper); border: 2px solid var(--line); border-radius: 16px; display: flex; flex-direction: column; gap: 2px; }
+.toc-item { width: 100%; text-align: left; border: 0; border-radius: 10px; padding: 8px 10px; background: transparent; font-size: 13px; }
+.toc-item.on { background: var(--pink-tint); font-weight: 700; }
+.chapter-name { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hl-list { width: 280px; flex: none; max-height: calc(100vh - 230px); overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.hl-item { text-align: left; background: var(--paper); border: 2px solid var(--line); border-left: 5px solid #ffc93c; border-radius: 14px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+.card.book .row { margin-top: 4px; }

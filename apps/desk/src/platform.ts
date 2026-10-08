@@ -148,3 +148,38 @@ export const aiFetch: FetchLike = async (url, init) => {
   const r = await fetch(url, { method: init.method, headers: init.headers, body: init.body });
   return { status: r.status, text: () => r.text() };
 };
+
+export interface PickedBook {
+  /** Only available through the desktop file dialog. */
+  path?: string;
+  name: string;
+  bytes: Uint8Array;
+}
+
+/** Read a book by path (desktop app only). */
+export async function readBook(path: string): Promise<Uint8Array> {
+  const buf = await invoke<ArrayBuffer>('read_book', { path });
+  return new Uint8Array(buf);
+}
+
+/** Let the user choose a .pdf or .epub. Null if they cancel. */
+export async function pickBook(): Promise<PickedBook | null> {
+  if (isTauri()) {
+    const { open } = await import('@tauri-apps/plugin-dialog');
+    const path = await open({ multiple: false, directory: false, filters: [{ name: 'Books', extensions: ['pdf', 'epub'] }] });
+    if (typeof path !== 'string') return null;
+    return { path, name: path.split(/[\\/]/).pop() ?? path, bytes: await readBook(path) };
+  }
+  // Browser (dev) fallback.
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.epub';
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      resolve(f ? { name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) } : null);
+    };
+    input.oncancel = () => resolve(null);
+    input.click();
+  });
+}

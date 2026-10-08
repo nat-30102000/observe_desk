@@ -133,6 +133,24 @@ async fn http_request(req: HttpRequest) -> Result<ObsidianResponse, String> {
     Ok(ObsidianResponse { status, body: String::from_utf8_lossy(&bytes).into_owned() })
 }
 
+const MAX_BOOK_BYTES: u64 = 200 * 1024 * 1024;
+
+/// Reads a book chosen in the file dialog. Only .pdf and .epub files, up to 200 MB. Returns raw bytes.
+#[tauri::command]
+fn read_book(path: String) -> Result<tauri::ipc::Response, String> {
+    let p = std::path::PathBuf::from(&path);
+    let ext = p.extension().and_then(|e| e.to_str()).map(|e| e.to_ascii_lowercase());
+    if !matches!(ext.as_deref(), Some("pdf") | Some("epub")) {
+        return Err("Only .pdf and .epub files can be opened".into());
+    }
+    let len = std::fs::metadata(&p).map_err(|e| e.to_string())?.len();
+    if len > MAX_BOOK_BYTES {
+        return Err("That file is larger than 200 MB".into());
+    }
+    let bytes = std::fs::read(&p).map_err(|e| e.to_string())?;
+    Ok(tauri::ipc::Response::new(bytes))
+}
+
 fn reveal(app: &AppHandle, label: &str) {
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.show();
@@ -218,6 +236,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(move |app, shortcut, event| {
@@ -237,6 +256,7 @@ pub fn run() {
             obsidian_fetch,
             http_get,
             http_request,
+            read_book,
             show_window,
             hide_window,
             storage::load_json,
