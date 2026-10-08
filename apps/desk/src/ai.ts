@@ -4,6 +4,7 @@ import {
   chat,
   cleanSummary,
   listModels,
+  ocrMessages,
   parseTags,
   providerInfo,
   summarizeMessages,
@@ -12,7 +13,7 @@ import {
   type ProviderCall,
   type ProviderId,
 } from '@observe/core';
-import { aiFetch, emitBus, getSecret, setSecret } from './platform';
+import { aiFetch, emitBus, getSecret, setSecret, toBase64 } from './platform';
 import type { Settings } from './state';
 
 export const aiKeyName = (id: ProviderId): string => `ai-key-${id}`;
@@ -84,4 +85,20 @@ export async function testProvider(settings: Settings, id: ProviderId): Promise<
 
 export function describeAiError(e: unknown): string {
   return e instanceof AiError || e instanceof Error ? e.message : String(e);
+}
+
+/** Read text from an image with the chosen AI provider. The image is sent to that provider. */
+export async function readTextWithAi(settings: Settings, mime: string, bytes: Uint8Array): Promise<{ text: string; provider: ProviderId }> {
+  const provider = await providerFor(settings, 'summary');
+  const key = provider ? await getAiKey(provider) : null;
+  if (!provider || !key) throw new AiError('auth', 'Add an AI provider key in Settings first.');
+  void emitBus('pet:mood', { mood: 'thinking', ms: 90_000 });
+  try {
+    const text = await chat(aiFetch, callFor(settings, provider), key, ocrMessages({ mime, base64: toBase64(bytes) }), 2000);
+    void emitBus('pet:mood', { mood: null });
+    return { text, provider };
+  } catch (e) {
+    void emitBus('pet:mood', { mood: 'worried', ms: 4000 });
+    throw e;
+  }
 }

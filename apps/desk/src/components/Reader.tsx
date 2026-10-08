@@ -1,8 +1,8 @@
-import { newId, providerInfo, type Capture, type ProviderId } from '@observe/core';
+import { fetchVideo, newId, parseVideoId, providerInfo, transcriptMarkdown, videoNoteBody, type Capture, type ProviderId, type Segment, type VideoInfo } from '@observe/core';
 import { useEffect, useRef, useState } from 'react';
 import { extractArticle, htmlToMarkdown, sanitizeHtml, type Article } from '../article';
 import { describeAiError, providerFor, suggestTags, summarize } from '../ai';
-import { emitBus, httpGet, isTauri } from '../platform';
+import { emitBus, httpGet, isTauri, webFetch } from '../platform';
 import { loadSettings } from '../service';
 
 async function openExternal(url: string): Promise<void> {
@@ -20,7 +20,78 @@ interface Props {
   onClose?: () => void;
 }
 
-export function Reader({ url, title, fallbackHtml, onClose }: Props) {
+const isYoutube = (url: string): boolean => {
+  try {
+    return /(^|\.)youtu(be\.com|\.be)$/.test(new URL(url).hostname) && parseVideoId(url) !== null;
+  } catch {
+    return false;
+  }
+};
+
+/** YouTube videos have nothing to read on the page, so show the captions instead. */
+function VideoReader({ url, onClose }: { url: string; onClose?: () => void }) {
+  const [data, setData] = useState<{ info: VideoInfo; segments: Segment[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    setData(null);
+    setError(null);
+    fetchVideo(webFetch, url).then(
+      (d) => live && setData(d),
+      (e) => live && setError(e instanceof Error ? e.message : String(e)),
+    );
+    return () => {
+      live = false;
+    };
+  }, [url]);
+
+  const clip = () => {
+    if (!data) return;
+    const capture: Capture = { id: newId(), kind: 'markdown', createdAt: new Date().toISOString(), tags: ['video', 'youtube'], title: data.info.title, body: videoNoteBody(data.info, data.segments) };
+    void emitBus('capture', capture);
+    setMessage('Sent to Nib. It will be filed in Notes.');
+  };
+
+  const blocks = data ? transcriptMarkdown(data.info.id, data.segments).split('\n\n').filter(Boolean) : [];
+
+  return (
+    <article className="reader">
+      <div className="reader-bar">
+        {onClose && <button className="btn small" onClick={onClose}>Back</button>}
+        <button className="btn small primary" onClick={clip} disabled={!data}>Clip with transcript</button>
+        <button className="btn small" onClick={() => void openExternal(url)}>Watch on YouTube</button>
+      </div>
+      {message && <p className="okmsg" role="status">{message}</p>}
+      {!data && !error && <p className="muted">Fetching the captions...</p>}
+      {error && <p className="error" role="alert">{error}</p>}
+      {data && (
+        <>
+          <h1>{data.info.title}</h1>
+          {data.info.channel && <p className="muted">{data.info.channel}</p>}
+          {blocks.length === 0 && <p className="muted">This video has no captions I can read. You can still clip it and add your own notes.</p>}
+          <div className="article-body">
+            {blocks.map((b, i) => {
+              const m = /^\[([^\]]+)\]\(([^)]+)\) ([\s\S]*)$/.exec(b);
+              return m ? (
+                <p key={i}><a href={m[2]} onClick={(e) => { e.preventDefault(); void openExternal(m[2] as string); }}>{m[1]}</a> {m[3]}</p>
+              ) : (
+                <p key={i}>{b}</p>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </article>
+  );
+}
+
+export function Reader(props: Props) {
+  return isYoutube(props.url) ? <VideoReader url={props.url} onClose={props.onClose} /> : <ArticleReader {...props} />;
+}
+
+function ArticleReader({ url, title, fallbackHtml, onClose }: Props) {
   const [article, setArticle] = useState<Article | null>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'fallback' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);

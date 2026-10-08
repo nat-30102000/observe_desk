@@ -58,5 +58,12 @@ Desk > Library > **Open a PDF or EPUB** (up to 200 MB). Books reopen where you l
 - **EPUB:** read by chapter with a contents list, text size and internal links. Content is sanitised; scripts never run.
 - **Highlights:** select text (add an optional note first or after), press **Highlight selection**. The quote goes to Obsidian as `Clippings/<book>.md` with the page (`p. 12`) or chapter, and your note. The Highlights panel lists them and jumps back to the spot. Password-protected PDFs and DRM-protected EPUBs are not supported.
 
+## Phase 3: files, screenshots, videos, threads
+- **Drop files and pictures** on Nib (or choose or paste them in Quick add > File). The file is saved in `Attachments/` and a note in `Notes/` shows it. Files wait on your disk while Obsidian is closed. Up to 50 MB.
+- **Screenshots:** `Ctrl+Alt+S` or Nib's menu > Snip a screenshot. Nib hides, the screen freezes, drag a box. The picture opens in Quick add with its text already read by Windows' built-in OCR (offline). Press **Read text with AI** to use your AI provider instead (this sends the picture to it). Windows needs an OCR language installed for the built-in engine.
+- **YouTube:** paste or drop a video link. Quick add > Video or thread fetches the captions as a note with timestamps that link back to the moment. YouTube items in Feeds open the same way.
+- **Threads:** Reddit, Hacker News, Mastodon and Bluesky links become a note with the post and replies. X (Twitter) cannot be read without logging in, so use the browser extension there.
+- Pasting or dropping a YouTube or thread link on Nib opens Quick add ready to fetch it.
+
 ## How data is stored
 The vault is the source of truth. One note per source in `Clippings/` (highlights appended with block ids, so retries never duplicate), bookmarks in `Bookmarks/`, notes in `Notes/`. The app only keeps the pending queue and settings in its app-data folder; the API key is kept in Windows Credential Manager.

@@ -250,6 +250,7 @@ function SettingsView() {
           <label>Highlights folder<input value={settings.folders.clippings} onChange={(e) => setFolder('clippings', e.target.value)} /></label>
           <label>Bookmarks folder<input value={settings.folders.bookmarks} onChange={(e) => setFolder('bookmarks', e.target.value)} /></label>
           <label>Notes folder<input value={settings.folders.notes} onChange={(e) => setFolder('notes', e.target.value)} /></label>
+          <label>Attachments folder<input value={settings.folders.attachments} onChange={(e) => setFolder('attachments', e.target.value)} /></label>
         </div>
         <div className="row">
           <button className="btn" onClick={() => void test()}>Test connection</button>

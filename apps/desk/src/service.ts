@@ -11,7 +11,7 @@ import {
   type Capture,
   type QueueItem,
 } from '@observe/core';
-import { emitBus, getSecret, listenBus, listenNative, loadJson, obsidianFetch, saveJson } from './platform';
+import { emitBus, fileStore, getSecret, listenBus, listenNative, loadJson, obsidianFetch, saveJson } from './platform';
 import { FeedService } from './feedService';
 import { DEFAULT_SETTINGS, INITIAL_STATE, type AppState, type QueuedSummary, type Settings } from './state';
 
@@ -44,7 +44,7 @@ export async function makeClient(settings: Settings): Promise<ObsidianClient | n
 }
 
 function titleOf(c: Capture): string {
-  return c.kind === 'highlight' ? c.source.title : c.title;
+  return c.kind === 'highlight' ? c.source.title : c.kind === 'file' ? c.name : c.title;
 }
 
 const summarize = (items: QueueItem[]): QueuedSummary[] =>
@@ -167,7 +167,7 @@ export class AppService {
       return;
     }
     try {
-      const r = await this.queue.flush(this.client, this.settings.folders);
+      const r = await this.queue.flush(this.client, this.settings.folders, { files: fileStore });
       let connected = !r.offline && !r.authError;
       let offline = r.offline;
       let authError = r.authError;

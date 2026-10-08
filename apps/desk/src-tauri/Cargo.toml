@@ -22,6 +22,19 @@ serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 tiny_http = "0.12"
 uuid = { version = "1", features = ["v4"] }
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
+png = "0.17"
+windows = { version = "0.61", features = [
+  "Foundation",
+  "Globalization",
+  "Graphics_Imaging",
+  "Media_Ocr",
+  "Storage_Streams",
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_WinRT",
+  "Win32_UI_WindowsAndMessaging",
+] }
 keyring = { version = "3", features = ["windows-native"] }

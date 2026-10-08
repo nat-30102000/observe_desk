@@ -31,7 +31,7 @@
         "title": "Quick add",
         "url": "index.html?view=quickadd",
         "width": 560,
-        "height": 640,
+        "height": 720,
         "center": true,
         "alwaysOnTop": true,
         "visible": false,

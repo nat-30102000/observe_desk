@@ -1,12 +1,14 @@
 import { moodFor, newId, type Capture, type Mood } from '@observe/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { emitBus, hideWindow, listenBus, listenNative, readClipboardText, showWindow } from '../platform';
+import { emitBus, hideWindow, isTauri, listenBus, listenNative, readClipboardText, showWindow, snipStart, stageFile } from '../platform';
+import { importKind } from './ImportPanel';
 import { AppService } from '../service';
 import { INITIAL_STATE, type AppState } from '../state';
 import { Nib } from './Nib';
 
 const BUBBLE_MS = 7000;
 const URL_RE = /^https?:\/\/\S+$/i;
+const MAX_FILE = 50 * 1024 * 1024;
 
 /** A dropped string is a link (bookmark) or text (markdown note). */
 function captureFromDrop(text: string): Capture | null {
@@ -89,16 +91,40 @@ export function Pet() {
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    if (e.dataTransfer.files.length > 0) {
-      flash('worried');
-      speak("I can't eat files yet. Files and images arrive in a later version.");
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      if (file.size > MAX_FILE) {
+        flash('worried');
+        return speak('That file is bigger than 50 MB, which is too much for me to carry.');
+      }
+      flash('nom');
+      void (async () => {
+        const id = newId();
+        await stageFile(id, new Uint8Array(await file.arrayBuffer()));
+        await service.capture({ id, kind: 'file', createdAt: new Date().toISOString(), tags: [], name: file.name || 'File', mime: file.type, size: file.size });
+      })().catch((err) => speak(`I dropped it: ${err instanceof Error ? err.message : String(err)}`));
       return;
     }
     const text = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain');
-    const capture = captureFromDrop(text.split(/\r?\n/).find((l) => l && !l.startsWith('#')) ?? text);
+    const line = text.split(/\r?\n/).find((l) => l && !l.startsWith('#')) ?? text;
+    // Videos and threads open Quick add, where they can be turned into a note.
+    if (URL_RE.test(line.trim()) && importKind(line.trim())) {
+      flash('curious', 5000);
+      void emitBus('quickadd:prefill', { text: line.trim() }).then(() => showWindow('quickadd'));
+      return;
+    }
+    const capture = captureFromDrop(line);
     if (!capture) return;
     flash('nom');
     void service.capture(capture);
+  };
+
+  const snip = () => {
+    flash('cheese', 8000);
+    snipStart().catch((err) => {
+      flash('worried');
+      speak(err instanceof Error ? err.message : String(err));
+    });
   };
 
   const go = (fn: () => Promise<void>) => () => {
@@ -116,6 +142,7 @@ export function Pet() {
       {menuOpen && (
         <nav className="pet-menu" aria-label="Nib menu">
           <button className="pill primary" onClick={go(() => showWindow('quickadd'))}>+ Quick add</button>
+          {isTauri() && <button className="pill" onClick={go(async () => snip())}>Snip a screenshot</button>}
           <button className="pill" onClick={go(() => showWindow('desk'))}>Open the Desk</button>
           <button
             className="pill"

@@ -11,14 +11,33 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
   return inv<T>(cmd, args);
 }
 
+export function toBase64(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+export function fromBase64(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 export const obsidianFetch: FetchLike = async (url, init) => {
   if (isTauri()) {
     const r = await invoke<{ status: number; body: string }>('obsidian_fetch', {
-      req: { url, method: init.method, headers: init.headers, body: init.body ?? null },
+      req: {
+        url,
+        method: init.method,
+        headers: init.headers,
+        body: init.bodyBytes ? null : (init.body ?? null),
+        body_base64: init.bodyBytes ? toBase64(init.bodyBytes) : null,
+      },
     });
     return { status: r.status, text: async () => r.body };
   }
-  const r = await fetch(url, { method: init.method, headers: init.headers, body: init.body, signal: init.signal });
+  const r = await fetch(url, { method: init.method, headers: init.headers, body: init.bodyBytes ? (init.bodyBytes as unknown as BodyInit) : init.body, signal: init.signal });
   return { status: r.status, text: () => r.text() };
 };
 
@@ -182,4 +201,50 @@ export async function pickBook(): Promise<PickedBook | null> {
     input.oncancel = () => resolve(null);
     input.click();
   });
+}
+
+/** For public web APIs (YouTube, Reddit, Hacker News...). Same Rust path as AI calls: https only. */
+export const webFetch: FetchLike = (url, init) => aiFetch(url, init);
+
+// ---------- staged files (dropped files wait here until Obsidian can take them) ----------
+
+export async function stageFile(id: string, bytes: Uint8Array): Promise<void> {
+  if (isTauri()) {
+    const { invoke: inv } = await import('@tauri-apps/api/core');
+    await inv('stage_file', bytes, { headers: { 'x-file-id': id } });
+  } else localStorage.setItem(`observe.staged.${id}`, toBase64(bytes)); // dev only, small files
+}
+
+export async function readStaged(id: string): Promise<Uint8Array> {
+  if (isTauri()) return new Uint8Array(await invoke<ArrayBuffer>('read_staged', { id }));
+  const b64 = localStorage.getItem(`observe.staged.${id}`);
+  if (b64 === null) throw new Error('The staged file is missing.');
+  return fromBase64(b64);
+}
+
+export async function removeStaged(id: string): Promise<void> {
+  if (isTauri()) await invoke<void>('remove_staged', { id });
+  else localStorage.removeItem(`observe.staged.${id}`);
+}
+
+/** Windows' built-in offline OCR on a staged PNG. */
+export async function ocrStaged(id: string): Promise<string> {
+  if (!isTauri()) throw new Error('Built-in text recognition is only available in the Windows app.');
+  return invoke<string>('ocr_staged', { id });
+}
+
+export const fileStore = { read: readStaged, remove: removeStaged };
+
+// ---------- screenshots ----------
+
+export async function snipStart(): Promise<void> {
+  await invoke<void>('snip_start');
+}
+
+export async function snipImage(): Promise<Uint8Array> {
+  return new Uint8Array(await invoke<ArrayBuffer>('snip_image'));
+}
+
+export async function snipClose(): Promise<void> {
+  if (isTauri()) await invoke<void>('snip_close');
 }

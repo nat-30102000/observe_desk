@@ -1,5 +1,11 @@
 mod bridge;
+mod snip;
+mod staging;
 mod storage;
+#[cfg(windows)]
+mod winocr;
+#[cfg(windows)]
+mod winshot;
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -16,6 +22,9 @@ struct ObsidianRequest {
     method: String,
     headers: HashMap<String, String>,
     body: Option<String>,
+    /// Binary bodies (attachments) arrive base64 encoded and take precedence over `body`.
+    #[serde(default)]
+    body_base64: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -46,7 +55,11 @@ async fn obsidian_fetch(req: ObsidianRequest) -> Result<ObsidianResponse, String
     for (k, v) in req.headers {
         builder = builder.header(k, v);
     }
-    if let Some(body) = req.body {
+    if let Some(b64) = req.body_base64 {
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD.decode(b64).map_err(|e| e.to_string())?;
+        builder = builder.body(bytes);
+    } else if let Some(body) = req.body {
         builder = builder.body(body);
     }
     let resp = builder.send().await.map_err(|e| e.to_string())?;
@@ -232,8 +245,10 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 pub fn run() {
     let quick_add = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyH);
     let pet_toggle = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyN);
+    let snip = Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyS);
 
     tauri::Builder::default()
+        .manage(snip::SnipState::default())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -248,6 +263,13 @@ pub fn run() {
                         let _ = app.emit("hotkey-capture", ());
                     } else if shortcut == &pet_toggle {
                         toggle_pet(app);
+                    } else if shortcut == &snip {
+                        let app = app.clone();
+                        std::thread::spawn(move || {
+                            if let Err(e) = snip::start(&app) {
+                                eprintln!("screenshot failed: {e}");
+                            }
+                        });
                     }
                 })
                 .build(),
@@ -257,6 +279,13 @@ pub fn run() {
             http_get,
             http_request,
             read_book,
+            snip::snip_start,
+            snip::snip_image,
+            snip::snip_close,
+            staging::stage_file,
+            staging::read_staged,
+            staging::remove_staged,
+            staging::ocr_staged,
             show_window,
             hide_window,
             storage::load_json,
@@ -283,6 +312,9 @@ pub fn run() {
             }
             if let Err(e) = handle.global_shortcut().register(pet_toggle) {
                 eprintln!("could not register Ctrl+Alt+N: {e}");
+            }
+            if let Err(e) = handle.global_shortcut().register(snip) {
+                eprintln!("could not register Ctrl+Alt+S: {e}");
             }
             bridge::start(handle);
             Ok(())
