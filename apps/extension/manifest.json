@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "observe_desk clipper",
+  "version": "0.1.0",
+  "description": "Send highlights and bookmarks to Nib, which files them in Obsidian.",
+  "permissions": ["contextMenus", "storage", "activeTab", "scripting"],
+  "host_permissions": ["http://127.0.0.1:27125/*"],
+  "background": { "service_worker": "background.js", "scripts": ["background.js"] },
+  "action": { "default_title": "Send to Nib", "default_popup": "popup.html" },
+  "options_ui": { "page": "options.html", "open_in_tab": true },
+  "commands": {
+    "highlight-selection": {
+      "suggested_key": { "default": "Ctrl+Shift+H" },
+      "description": "Send the selected text to Nib"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": { "id": "clipper@observe-desk.dev", "strict_min_version": "121.0" }
+  }
+}

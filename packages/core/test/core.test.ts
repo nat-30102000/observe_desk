@@ -202,3 +202,25 @@ describe('CaptureQueue', () => {
     expect(await q.pendingCount()).toBe(0);
   });
 });
+
+import { captureFromExtension } from '../src';
+
+describe('captureFromExtension', () => {
+  const now = new Date('2026-10-07T10:00:00Z');
+  it('builds a highlight and cleans tags', () => {
+    const c = captureFromExtension({ type: 'highlight', url: 'https://aeon.co/x', title: 'T', text: ' hi ', tags: ['#Deep Reading', '', 5] }, now, 'id1');
+    expect(c).toMatchObject({ kind: 'highlight', id: 'id1', tags: ['Deep-Reading'], source: { url: 'https://aeon.co/x', title: 'T' } });
+  });
+  it('builds bookmarks and page clips', () => {
+    expect(captureFromExtension({ type: 'bookmark', url: 'https://a.com', title: 'A' }, now, 'i')).toMatchObject({ kind: 'bookmark' });
+    expect(captureFromExtension({ type: 'page', url: 'https://a.com', title: 'A', markdown: '# x' }, now, 'i')).toMatchObject({ kind: 'markdown', title: 'A' });
+  });
+  it('rejects non-http urls, empty text, unknown types and junk', () => {
+    expect(captureFromExtension({ type: 'highlight', url: 'javascript:alert(1)', title: 'x', text: 'y' })).toBeNull();
+    expect(captureFromExtension({ type: 'highlight', url: 'file:///etc/passwd', title: 'x', text: 'y' })).toBeNull();
+    expect(captureFromExtension({ type: 'highlight', url: 'https://a.com', title: 'x', text: '  ' })).toBeNull();
+    expect(captureFromExtension({ type: 'nope', url: 'https://a.com' })).toBeNull();
+    expect(captureFromExtension(null)).toBeNull();
+    expect(captureFromExtension('x')).toBeNull();
+  });
+});

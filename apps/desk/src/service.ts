@@ -1,0 +1,177 @@
+import {
+  AuthError,
+  CaptureQueue,
+  ObsidianClient,
+  OfflineError,
+  captureFromExtension,
+  speechForFlush,
+  type Capture,
+  type QueueItem,
+} from '@observe/core';
+import { emitBus, getSecret, listenBus, listenNative, loadJson, obsidianFetch, saveJson } from './platform';
+import { DEFAULT_SETTINGS, INITIAL_STATE, type AppState, type QueuedSummary, type Settings } from './state';
+
+export const KEY_SECRET = 'obsidian-api-key';
+const SYNC_EVERY_MS = 30_000;
+const RECENT_LIMIT = 20;
+
+export async function loadSettings(): Promise<Settings> {
+  const saved = await loadJson<Partial<Settings>>('settings');
+  return { ...DEFAULT_SETTINGS, ...saved, folders: { ...DEFAULT_SETTINGS.folders, ...saved?.folders } };
+}
+
+export async function makeClient(settings: Settings): Promise<ObsidianClient | null> {
+  const apiKey = await getSecret(KEY_SECRET);
+  return apiKey ? new ObsidianClient({ baseUrl: settings.baseUrl, apiKey }, obsidianFetch) : null;
+}
+
+function titleOf(c: Capture): string {
+  return c.kind === 'highlight' ? c.source.title : c.title;
+}
+
+const summarize = (items: QueueItem[]): QueuedSummary[] =>
+  items.map((i) => ({
+    id: i.capture.id,
+    kind: i.capture.kind,
+    title: titleOf(i.capture),
+    attempts: i.attempts,
+    failed: i.failed === true,
+    lastError: i.lastError,
+  }));
+
+/**
+ * Owns the capture queue and talks to Obsidian. Only the pet window creates one (it is always
+ * running), so the queue file never has two writers. Other windows send it messages.
+ */
+export class AppService {
+  state: AppState = INITIAL_STATE;
+  private settings: Settings = DEFAULT_SETTINGS;
+  private client: ObsidianClient | null = null;
+  private readonly queue = new CaptureQueue({
+    load: async () => (await loadJson<QueueItem[]>('queue')) ?? [],
+    save: (items) => saveJson('queue', items),
+  });
+  private readonly listeners = new Set<(s: AppState) => void>();
+  private timer: ReturnType<typeof setInterval> | undefined;
+  private readonly unlisten: Array<() => void> = [];
+  private lastSpeech = '';
+
+  subscribe(fn: (s: AppState) => void): () => void {
+    this.listeners.add(fn);
+    fn(this.state);
+    return () => this.listeners.delete(fn);
+  }
+
+  private publish(patch: Partial<AppState>): void {
+    this.state = { ...this.state, ...patch };
+    this.listeners.forEach((l) => l(this.state));
+    void emitBus('state', this.state);
+  }
+
+  say(text: string): void {
+    this.publish({ speech: { text, at: Date.now() } });
+  }
+
+  async start(): Promise<void> {
+    await this.reloadSettings();
+    this.unlisten.push(
+      await listenBus<Capture>('capture', (c) => void this.capture(c)),
+      await listenBus<void>('settings-changed', () => void this.reloadSettings().then(() => this.sync())),
+      await listenBus<void>('sync', () => void this.sync()),
+      await listenBus<void>('retry-failed', () => void this.queue.retryFailed().then(() => this.sync())),
+      await listenBus<void>('state?', () => void emitBus('state', this.state)),
+      await listenNative<unknown>('ext-capture', (raw) => {
+        const c = captureFromExtension(raw);
+        if (c) void this.capture(c);
+        else this.say("The browser extension sent something I couldn't read.");
+      }),
+    );
+    this.timer = setInterval(() => void this.sync(), SYNC_EVERY_MS);
+    await this.sync();
+  }
+
+  stop(): void {
+    if (this.timer) clearInterval(this.timer);
+    this.unlisten.forEach((u) => u());
+  }
+
+  private async reloadSettings(): Promise<void> {
+    this.settings = await loadSettings();
+    this.client = await makeClient(this.settings);
+    this.publish({ configured: this.client !== null });
+  }
+
+  async capture(c: Capture): Promise<void> {
+    await this.queue.enqueue(c);
+    await this.refreshQueueView();
+    await this.sync();
+  }
+
+  private async refreshQueueView(): Promise<void> {
+    const items = await this.queue.list();
+    this.publish({
+      queue: summarize(items),
+      pending: items.filter((i) => !i.failed).length,
+      failed: items.filter((i) => i.failed).length,
+    });
+  }
+
+  async sync(): Promise<void> {
+    if (!this.client) {
+      await this.refreshQueueView();
+      this.publish({ configured: false, connected: false });
+      return;
+    }
+    try {
+      const r = await this.queue.flush(this.client, this.settings.folders);
+      let connected = !r.offline && !r.authError;
+      let offline = r.offline;
+      let authError = r.authError;
+      if (r.written.length === 0 && !r.offline && !r.authError) {
+        // Nothing to write: still check that Obsidian and the key are good.
+        try {
+          const s = await this.client.status();
+          authError = !s.authenticated;
+          connected = s.authenticated;
+          offline = false;
+        } catch (e) {
+          offline = e instanceof OfflineError;
+          authError = e instanceof AuthError;
+          connected = false;
+        }
+      }
+      const items = await this.queue.list();
+      const recent = [
+        ...r.written
+          .filter((w) => w.action !== 'unchanged')
+          .map((w) => ({
+            id: w.id,
+            title: w.path.replace(/^.*\//, '').replace(/\.md$/, ''),
+            path: w.path,
+            action: w.action,
+            at: new Date().toISOString(),
+          }))
+          .reverse(),
+        ...this.state.recent,
+      ].slice(0, RECENT_LIMIT);
+      this.publish({
+        connected,
+        offline,
+        authError,
+        pending: r.pending,
+        failed: r.failed,
+        queue: summarize(items),
+        recent,
+      });
+      const speech = speechForFlush({ ...r, written: r.written.length, offline, authError });
+      // Don't repeat the same worry every sync; speak again only when something changes.
+      if (!speech) this.lastSpeech = '';
+      else if (r.written.length > 0 || speech.text !== this.lastSpeech) {
+        this.lastSpeech = speech.text;
+        this.say(speech.text);
+      }
+    } catch (e) {
+      this.say(`Something went wrong: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+}

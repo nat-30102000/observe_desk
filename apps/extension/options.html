@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>observe_desk clipper options</title>
+<style>
+  body { font: 15px/1.5 system-ui, sans-serif; max-width: 520px; margin: 40px auto; padding: 0 16px; color: #2B2140; background: #FFF6E5; }
+  input { width: 100%; box-sizing: border-box; min-height: 44px; padding: 8px 12px; border: 2px solid #D9BC93; border-radius: 10px; font: inherit; }
+  button { min-height: 44px; padding: 0 18px; margin-top: 10px; border-radius: 10px; border: 2px solid #2B2140; background: #FF8FA3; font: inherit; font-weight: 700; cursor: pointer; }
+  #msg { font-weight: 600; color: #1F8F63; min-height: 1.4em; }
+</style>
+</head>
+<body>
+  <h1>observe_desk clipper</h1>
+  <p>Open observe_desk, go to <strong>Settings &rarr; Browser extension</strong>, copy the token, and paste it here.</p>
+  <label for="token">Token</label>
+  <input id="token" type="password" autocomplete="off">
+  <button id="save">Save</button>
+  <p id="msg" role="status"></p>
+  <script src="options.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "@observe/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Browser extension (Chrome and Firefox, Manifest V3). Load apps/extension as an unpacked extension; there is no build step.",
+  "scripts": {
+    "typecheck": "node --check background.js && node --check popup.js && node --check options.js"
+  }
+}

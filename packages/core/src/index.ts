@@ -7,3 +7,4 @@ export * from './notes';
 export * from './writer';
 export * from './queue';
 export * from './mood';
+export * from './extension';
