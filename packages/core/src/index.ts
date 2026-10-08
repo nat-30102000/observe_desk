@@ -8,3 +8,6 @@ export * from './writer';
 export * from './queue';
 export * from './mood';
 export * from './extension';
+export * from './feeds';
+export * from './subscriptions';
+export * from './search';
