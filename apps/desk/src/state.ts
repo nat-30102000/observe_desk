@@ -1,13 +1,22 @@
-import { DEFAULT_FOLDERS, type Folders } from '@observe/core';
+import { DEFAULT_FOLDERS, type Folders, type ProviderId } from '@observe/core';
+
+export interface AiSettings {
+  summaryProvider?: ProviderId;
+  tagProvider?: ProviderId;
+  /** Per-provider overrides. The API key itself lives in the secret store, never here. */
+  providers: Partial<Record<ProviderId, { model?: string; baseUrl?: string }>>;
+}
 
 export interface Settings {
   baseUrl: string;
   folders: Folders;
+  ai: AiSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   baseUrl: 'https://127.0.0.1:27124',
   folders: DEFAULT_FOLDERS,
+  ai: { providers: {} },
 };
 
 export interface RecentItem {

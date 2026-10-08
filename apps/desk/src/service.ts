@@ -30,7 +30,12 @@ function reminderText(r: Reminder, more: number): string {
 
 export async function loadSettings(): Promise<Settings> {
   const saved = await loadJson<Partial<Settings>>('settings');
-  return { ...DEFAULT_SETTINGS, ...saved, folders: { ...DEFAULT_SETTINGS.folders, ...saved?.folders } };
+  return {
+    ...DEFAULT_SETTINGS,
+    ...saved,
+    folders: { ...DEFAULT_SETTINGS.folders, ...saved?.folders },
+    ai: { providers: {}, ...saved?.ai },
+  };
 }
 
 export async function makeClient(settings: Settings): Promise<ObsidianClient | null> {

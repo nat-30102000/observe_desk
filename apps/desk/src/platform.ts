@@ -136,3 +136,15 @@ export async function httpGet(url: string): Promise<HttpResult> {
   const r = await fetch(url);
   return { status: r.status, body: await r.text(), finalUrl: r.url || url };
 }
+
+/** Calls to hosted AI providers. Through Rust in the app, because providers block browser origins. */
+export const aiFetch: FetchLike = async (url, init) => {
+  if (isTauri()) {
+    const r = await invoke<{ status: number; body: string }>('http_request', {
+      req: { url, method: init.method, headers: init.headers, body: init.body ?? null },
+    });
+    return { status: r.status, text: async () => r.body };
+  }
+  const r = await fetch(url, { method: init.method, headers: init.headers, body: init.body });
+  return { status: r.status, text: () => r.text() };
+};

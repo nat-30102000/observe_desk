@@ -1,6 +1,8 @@
 import { newId, type Capture } from '@observe/core';
 import { useEffect, useState } from 'react';
+import { describeAiError, providerFor, suggestTags } from '../ai';
 import { emitBus, hideWindow, listenBus } from '../platform';
+import { loadSettings } from '../service';
 
 type Kind = 'highlight' | 'markdown' | 'bookmark';
 const TABS: Array<{ kind: Kind; label: string }> = [
@@ -42,6 +44,27 @@ export function QuickAdd() {
   const [note, setNote] = useState('');
   const [tags, setTags] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [aiReady, setAiReady] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
+
+  useEffect(() => {
+    void loadSettings().then(async (st) => setAiReady((await providerFor(st, 'tags')) !== null));
+  }, [kind]);
+
+  const askTags = async () => {
+    const source = text.trim() || note.trim() || title.trim();
+    if (!source) return setError('Add some text first so there is something to tag.');
+    setAiBusy(true);
+    setError(null);
+    try {
+      const r = await suggestTags(await loadSettings(), title.trim() || url || 'Untitled', source);
+      setTags([...new Set([...parseTags(tags), ...r.tags])].join(', '));
+    } catch (e) {
+      setError(describeAiError(e));
+    } finally {
+      setAiBusy(false);
+    }
+  };
 
   const reset = () => {
     setText('');
@@ -121,6 +144,7 @@ export function QuickAdd() {
         Tags
         <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="research, reading" />
       </label>
+      {aiReady && <button type="button" className="btn small" style={{ alignSelf: 'flex-start' }} disabled={aiBusy} onClick={() => void askTags()}>{aiBusy ? 'Thinking...' : 'Suggest tags with AI'}</button>}
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
         <button type="button" className="btn" onClick={() => void hideWindow('quickadd')}>Cancel</button>

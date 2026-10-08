@@ -94,6 +94,45 @@ async fn http_get(url: String) -> Result<HttpResponse, String> {
     Ok(HttpResponse { status, body: String::from_utf8_lossy(&bytes).into_owned(), final_url })
 }
 
+#[derive(Deserialize)]
+struct HttpRequest {
+    url: String,
+    method: String,
+    headers: HashMap<String, String>,
+    body: Option<String>,
+}
+
+/// Calls hosted AI providers. https only, never loopback, size and time limited.
+#[tauri::command]
+async fn http_request(req: HttpRequest) -> Result<ObsidianResponse, String> {
+    let url = reqwest::Url::parse(&req.url).map_err(|e| e.to_string())?;
+    if url.scheme() != "https" {
+        return Err("Only https addresses are allowed".into());
+    }
+    if is_loopback(url.host_str().unwrap_or("")) {
+        return Err("Local addresses are not allowed here".into());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(90))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let method = reqwest::Method::from_bytes(req.method.as_bytes()).map_err(|e| e.to_string())?;
+    let mut builder = client.request(method, url);
+    for (k, v) in req.headers {
+        builder = builder.header(k, v);
+    }
+    if let Some(body) = req.body {
+        builder = builder.body(body);
+    }
+    let resp = builder.send().await.map_err(|e| e.to_string())?;
+    let status = resp.status().as_u16();
+    let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
+    if bytes.len() > MAX_PAGE_BYTES {
+        return Err("The answer was too large".into());
+    }
+    Ok(ObsidianResponse { status, body: String::from_utf8_lossy(&bytes).into_owned() })
+}
+
 fn reveal(app: &AppHandle, label: &str) {
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.show();
@@ -197,6 +236,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             obsidian_fetch,
             http_get,
+            http_request,
             show_window,
             hide_window,
             storage::load_json,

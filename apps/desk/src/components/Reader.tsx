@@ -1,7 +1,9 @@
-import { newId, type Capture } from '@observe/core';
+import { newId, providerInfo, type Capture, type ProviderId } from '@observe/core';
 import { useEffect, useRef, useState } from 'react';
 import { extractArticle, htmlToMarkdown, sanitizeHtml, type Article } from '../article';
+import { describeAiError, providerFor, suggestTags, summarize } from '../ai';
 import { emitBus, httpGet, isTauri } from '../platform';
+import { loadSettings } from '../service';
 
 async function openExternal(url: string): Promise<void> {
   if (isTauri()) {
@@ -23,6 +25,44 @@ export function Reader({ url, title, fallbackHtml, onClose }: Props) {
   const [state, setState] = useState<'loading' | 'ready' | 'fallback' | 'error'>('loading');
   const [message, setMessage] = useState<string | null>(null);
   const body = useRef<HTMLDivElement>(null);
+  const [aiProvider, setAiProvider] = useState<{ summary: ProviderId | null; tags: ProviderId | null }>({ summary: null, tags: null });
+  const [summary, setSummary] = useState<string | null>(null);
+  const [tags, setTags] = useState<string[]>([]);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [aiBusy, setAiBusy] = useState<'summary' | 'tags' | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  useEffect(() => {
+    void loadSettings().then(async (st) => setAiProvider({ summary: await providerFor(st, 'summary'), tags: await providerFor(st, 'tags') }));
+  }, []);
+
+  // A new article starts without the previous article's AI output.
+  useEffect(() => {
+    setSummary(null);
+    setTags([]);
+    setChosen(new Set());
+    setAiError(null);
+  }, [url]);
+
+  const askAi = async (task: 'summary' | 'tags') => {
+    if (!article) return;
+    setAiBusy(task);
+    setAiError(null);
+    try {
+      const st = await loadSettings();
+      const text = article.text || article.html.replace(/<[^>]+>/g, ' ');
+      if (task === 'summary') setSummary((await summarize(st, article.title, text)).summary);
+      else {
+        const r = await suggestTags(st, article.title, text);
+        setTags(r.tags);
+        setChosen(new Set(r.tags));
+      }
+    } catch (e) {
+      setAiError(describeAiError(e));
+    } finally {
+      setAiBusy(null);
+    }
+  };
 
   useEffect(() => {
     let live = true;
@@ -55,7 +95,7 @@ export function Reader({ url, title, fallbackHtml, onClose }: Props) {
 
   const clipArticle = () => {
     if (!article) return;
-    const capture: Capture = { ...base(), kind: 'markdown', title: article.title, tags: ['clippings'], body: `Source: <${url}>\n\n${htmlToMarkdown(article.html)}` };
+    const capture: Capture = { ...base(), kind: 'markdown', title: article.title, tags: ['clippings', ...chosen], body: `Source: <${url}>\n\n${summary ? `## Summary\n${summary}\n\n## Article\n` : ''}${htmlToMarkdown(article.html)}` };
     void emitBus('capture', capture);
     setMessage('Sent to Nib. It will be filed in Notes.');
   };
@@ -85,6 +125,32 @@ export function Reader({ url, title, fallbackHtml, onClose }: Props) {
         <button className="btn small primary" onClick={clipArticle} disabled={!article}>Clip article</button>
         <button className="btn small" onClick={() => void openExternal(url)}>Open original</button>
       </div>
+      {(aiProvider.summary || aiProvider.tags) && (
+        <div className="reader-bar">
+          {aiProvider.summary && <button className="btn small" disabled={!article || aiBusy !== null} onClick={() => void askAi('summary')}>{aiBusy === 'summary' ? 'Summarizing...' : 'Summarize'}</button>}
+          {aiProvider.tags && <button className="btn small" disabled={!article || aiBusy !== null} onClick={() => void askAi('tags')}>{aiBusy === 'tags' ? 'Thinking...' : 'Suggest tags'}</button>}
+          <span className="muted small">Sends this article's text to {providerInfo((aiProvider.summary ?? aiProvider.tags)!).label}.</span>
+        </div>
+      )}
+      {aiError && <p className="error" role="alert">{aiError}</p>}
+      {summary && (
+        <div className="ai-box">
+          <h3>Summary</h3>
+          <ul>{summary.split('\n').map((l, i) => <li key={i}>{l.replace(/^-\s*/, '')}</li>)}</ul>
+          <p className="muted small">Made by AI, so check it. It is added to the note when you press Clip article.</p>
+        </div>
+      )}
+      {tags.length > 0 && (
+        <div className="ai-box">
+          <h3>Suggested tags</h3>
+          <div className="tagrow">
+            {tags.map((t) => (
+              <button key={t} className={chosen.has(t) ? 'tagbtn on' : 'tagbtn'} aria-pressed={chosen.has(t)} onClick={() => setChosen((c) => { const n = new Set(c); if (n.has(t)) n.delete(t); else n.add(t); return n; })}>#{t}</button>
+            ))}
+          </div>
+          <p className="muted small">Selected tags are added when you press Clip article.</p>
+        </div>
+      )}
       {message && <p className="okmsg" role="status">{message}</p>}
       {state === 'loading' && <p className="muted">Loading the article...</p>}
       {state === 'error' && <p className="error">Could not load this page. Use Open original instead.</p>}

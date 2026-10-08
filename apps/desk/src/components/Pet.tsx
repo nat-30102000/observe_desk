@@ -1,6 +1,6 @@
 import { moodFor, newId, type Capture, type Mood } from '@observe/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { emitBus, hideWindow, listenNative, readClipboardText, showWindow } from '../platform';
+import { emitBus, hideWindow, listenBus, listenNative, readClipboardText, showWindow } from '../platform';
 import { AppService } from '../service';
 import { INITIAL_STATE, type AppState } from '../state';
 import { Nib } from './Nib';
@@ -59,6 +59,19 @@ export function Pet() {
     else if (/^Extra, extra/.test(state.speech.text)) flash('newsflash', 6000);
     else if (/^Psst!/.test(state.speech.text)) flash('reminder', 8000);
   }, [state.speech, speak, flash]);
+
+  // Other windows can ask Nib to show a mood (e.g. thinking while an AI call runs).
+  useEffect(() => {
+    let off = () => undefined as void;
+    void listenBus<{ mood: Mood | null; ms?: number }>('pet:mood', ({ mood, ms }) => {
+      if (mood) flash(mood, ms ?? 3500);
+      else {
+        clearTimeout(transientTimer.current);
+        setTransient(undefined);
+      }
+    }).then((u) => (off = u));
+    return () => off();
+  }, [flash]);
 
   // Ctrl+Alt+H: read the clipboard and open quick-add with it.
   useEffect(() => {

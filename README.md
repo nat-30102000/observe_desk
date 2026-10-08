@@ -45,7 +45,14 @@ npm run tauri -w @observe/desk build  # Windows installer (NSIS)
 - **Subscriptions**: paid subscriptions as notes in `Subscriptions/` (cost, cycle, next renewal, status). Totals per currency, "Renewed" rolls the date forward, Nib reminds you 7 days and 1 day before a renewal.
 - **Search**: one box over clippings, bookmarks, feed items and subscriptions (in-memory index built when the tab opens).
 
-Not in yet: PDF/EPUB reader and the AI summaries/auto-tagging layer (next).
+## AI helpers (optional, off until you add a key)
+Settings > AI helpers supports Claude, GPT, Grok, Gemini, NVIDIA NIM, OpenCode and Ollama Cloud (hosted). Add a key for any of them, press **Load models** to pick a model (model names change often, so they are never hard-coded), and **Test**. Then:
+- In the reader: **Summarize** and **Suggest tags**. Both are added to the note when you press Clip article.
+- In Quick add: **Suggest tags with AI**.
+- You choose which provider handles summaries and which handles tags. Text is sent only when you press a button. Keys live in Windows Credential Manager. Nib looks thoughtful while a request runs.
+- Endpoints: Claude (Messages API), Ollama Cloud (`/api/chat`), all others via the OpenAI chat-completions format. You can override any address.
+
+Not in yet: PDF/EPUB reader.
 
 ## How data is stored
 The vault is the source of truth. One note per source in `Clippings/` (highlights appended with block ids, so retries never duplicate), bookmarks in `Bookmarks/`, notes in `Notes/`. The app only keeps the pending queue and settings in its app-data folder; the API key is kept in Windows Credential Manager.

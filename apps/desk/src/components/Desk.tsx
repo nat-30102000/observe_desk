@@ -19,6 +19,7 @@ import {
 } from '../platform';
 import { KEY_SECRET, loadSettings, makeClient } from '../service';
 import { INITIAL_STATE, type AppState, type Settings } from '../state';
+import { AiPanel } from './AiPanel';
 import { Feeds, useFeeds } from './Feeds';
 import { Nib } from './Nib';
 import { Reader } from './Reader';
@@ -254,6 +255,7 @@ function SettingsView() {
         </div>
         {message && <p className={message.ok ? 'okmsg' : 'error'} role="status">{message.text}</p>}
       </div>
+      <AiPanel settings={settings} onChange={set} />
       <div className="panel">
         <h2>Browser extension</h2>
         <p className="muted">Paste this token into the extension's options page. It lets the extension talk to Nib on this computer only.</p>
