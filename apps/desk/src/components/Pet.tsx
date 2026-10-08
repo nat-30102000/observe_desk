@@ -151,6 +151,9 @@ export function Pet() {
       )}
       {menuOpen && (
         <nav className="pet-menu" aria-label="Nib menu">
+          {state.updates.available && !state.updates.installing && (
+            <button className="pill update" onClick={go(() => emitBus('updates:install'))}>Update to {state.updates.available.version}</button>
+          )}
           <button className="pill primary" onClick={go(() => showWindow('quickadd'))}>+ Quick add</button>
           <button className="pill" onClick={go(async () => { await emitBus('quickadd:prefill', { voice: true }); await showWindow('quickadd'); })}>Voice note</button>
           {isTauri() && <button className="pill" onClick={go(async () => snip())}>Snip a screenshot</button>}

@@ -14,6 +14,8 @@ import {
 import { emitBus, fileStore, getSecret, listenBus, listenNative, loadJson, obsidianFetch, saveJson } from './platform';
 import { FeedService } from './feedService';
 import { pollMail } from './mailService';
+import { tauriUpdater } from './updaterApi';
+import { UpdateService } from './updates';
 import { DEFAULT_SETTINGS, INITIAL_STATE, type AppState, type QueuedSummary, type Settings } from './state';
 
 export const KEY_SECRET = 'obsidian-api-key';
@@ -37,6 +39,7 @@ export async function loadSettings(): Promise<Settings> {
     folders: { ...DEFAULT_SETTINGS.folders, ...saved?.folders },
     ai: { providers: {}, ...saved?.ai },
     email: { ...DEFAULT_SETTINGS.email, ...saved?.email },
+    updates: { ...DEFAULT_SETTINGS.updates, ...saved?.updates },
   };
 }
 
@@ -99,12 +102,14 @@ export class AppService {
     await this.reloadSettings();
     this.unlisten.push(
       await listenBus<Capture>('capture', (c) => void this.capture(c)),
+      await listenBus<void>('updates:check', () => void this.updater.checkNow()),
+      await listenBus<void>('updates:install', () => void this.updater.install()),
       await listenBus<Capture[]>('capture-batch', (cs) => void this.captureMany(cs)),
       await listenBus<void>('settings-changed', () => void this.reloadSettings().then(() => this.sync()).then(() => this.checkMail())),
       await listenBus<void>('sync', () => void this.sync()),
       await listenBus<void>('retry-failed', () => void this.queue.retryFailed().then(() => this.sync())),
       await listenBus<void>('subs-changed', () => void this.checkReminders()),
-      await listenBus<void>('state?', () => void emitBus('state', this.state)),
+      await listenBus<void>('state-request', () => void emitBus('state', this.state)),
       await listenNative<unknown>('ext-capture', (raw) => {
         const c = captureFromExtension(raw);
         if (c) void this.capture(c);
@@ -114,6 +119,7 @@ export class AppService {
     this.timer = setInterval(() => void this.sync(), SYNC_EVERY_MS);
     await this.sync();
     await this.feeds.start();
+    void this.updater.start();
     this.seenReminders = new Set((await loadJson<string[]>('reminders-seen')) ?? []);
     this.reminderTimer = setInterval(() => void this.checkReminders(), REMINDER_EVERY_MS);
     void this.checkReminders();
@@ -125,6 +131,7 @@ export class AppService {
     if (this.reminderTimer) clearInterval(this.reminderTimer);
     clearTimeout(this.mailTimer);
     this.feeds.stop();
+    this.updater.stop();
     this.unlisten.forEach((u) => u());
   }
 
@@ -157,6 +164,14 @@ export class AppService {
     if (added > 0 && cs.length > 3) this.say(`Got ${added} items to file. This may take a little while.`);
     await this.sync();
   }
+
+  private readonly updater = new UpdateService(
+    tauriUpdater,
+    (updates) => this.publish({ updates }),
+    (text) => this.say(text),
+    () => this.settings.updates,
+    () => this.state.pending > 0 || this.syncing,
+  );
 
   private mailBusy = false;
   private mailTimer: ReturnType<typeof setTimeout> | undefined;

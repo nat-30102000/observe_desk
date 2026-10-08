@@ -59,7 +59,7 @@ export class FeedService {
       await listenBus<string>('feeds:add', (url) => void this.add(url)),
       await listenBus<string>('feeds:remove', (id) => void this.remove(id)),
       await listenBus<void>('feeds:refresh', () => void this.refreshAll(false)),
-      await listenBus<void>('feeds:state?', () => void emitBus('feeds:state', this.state)),
+      await listenBus<void>('feeds:state-request', () => void emitBus('feeds:state', this.state)),
       await listenBus<{ ids: string[]; read: boolean }>('feeds:read', (m) => void this.markRead(m.ids, m.read)),
     );
     this.timer = setInterval(() => void this.refreshAll(true), REFRESH_EVERY_MS);

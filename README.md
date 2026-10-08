@@ -71,5 +71,8 @@ Desk > Library > **Open a PDF or EPUB** (up to 200 MB). Books reopen where you l
 - **Email and newsletters:** Settings > Email. Give Nib an IMAP mailbox that is only for this (a new address with an app password), then forward emails or subscribe newsletters to it. New mail becomes a note in Notes with the sender, date and subject. Nib only reads: nothing is deleted, moved or marked read. Pictures are never downloaded. Optional sender allow-list. The first connection starts from now unless you tick "also import existing mail".
 - **Import:** Desk > Import takes a Readwise CSV, Kindle `My Clippings.txt`, or a Pocket export (HTML or CSV). Highlights go into one note per book (with notes and locations), Pocket links become bookmarks with their tags and read state. Re-importing the same file adds nothing twice.
 
+## Updates and releases
+Installed copies check for new versions on start and every 6 hours (Desk > Settings > Updates), tell you once, and install with one click, or by themselves if you allow it. Updates are verified against a public key built into the app. Making releases (update key, Windows code signing, GitHub Actions) is described in `RELEASING.md`. Development builds never contact an update server.
+
 ## How data is stored
 The vault is the source of truth. One note per source in `Clippings/` (highlights appended with block ids, so retries never duplicate), bookmarks in `Bookmarks/`, notes in `Notes/`. The app only keeps the pending queue and settings in its app-data folder; the API key is kept in Windows Credential Manager.

@@ -28,6 +28,7 @@ import { Nib } from './Nib';
 import { Reader } from './Reader';
 import { Search } from './Search';
 import { StartupPanel } from './StartupPanel';
+import { UpdatesPanel } from './UpdatesPanel';
 import { Subscriptions } from './Subscriptions';
 
 type Tab = 'inbox' | 'bookmarks' | 'feeds' | 'library' | 'subscriptions' | 'import' | 'search' | 'settings';
@@ -45,7 +46,7 @@ function useAppState(): AppState {
     let off = () => undefined as void;
     void listenBus<AppState>('state', setState).then((u) => {
       off = u;
-      void emitBus('state?');
+      void emitBus('state-request');
     });
     return () => off();
   }, []);
@@ -263,6 +264,7 @@ function SettingsView() {
         {message && <p className={message.ok ? 'okmsg' : 'error'} role="status">{message.text}</p>}
       </div>
       <StartupPanel />
+      <UpdatesPanel settings={settings} onChange={set} />
       <AiPanel settings={settings} onChange={set} />
       <EmailPanel settings={settings} onChange={set} />
       <div className="panel">

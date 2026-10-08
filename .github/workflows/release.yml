@@ -1,0 +1,126 @@
+name: Release
+
+# Push a tag like v0.2.0 to build the installer and a DRAFT release.
+# Publish the draft by hand once you have tried the installer; the in-app updater only sees published releases.
+# One-time setup (update key, code-signing certificate, secrets): see RELEASING.md.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build, for example v0.2.0 (must already exist)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desk/src-tauri
+
+      - name: Check the release is set up
+        shell: pwsh
+        run: |
+          node scripts/release-tools.mjs check $env:TAG --release
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
+            Write-Error "The secret TAURI_SIGNING_PRIVATE_KEY is missing. Without it the update cannot be signed (see RELEASING.md)."
+            exit 1
+          }
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
+
+      # Windows code signing. Pick ONE of the two, or neither (the installer is then UNSIGNED and Windows will warn).
+      #  A) A certificate file:  secrets WINDOWS_CERTIFICATE (the .pfx, base64) and WINDOWS_CERTIFICATE_PASSWORD
+      #  B) Azure Trusted Signing: repository variables AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE
+      #     and secrets AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
+      - name: Prepare code signing
+        id: signing
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_SIGNING_PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        run: |
+          $override = '{}'
+          $mode = 'none'
+          if ($env:WINDOWS_CERTIFICATE) {
+            $bytes = [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE)
+            $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
+            [IO.File]::WriteAllBytes($pfx, $bytes)
+            $cert = Import-PfxCertificate -FilePath $pfx -CertStoreLocation Cert:\CurrentUser\My -Password (ConvertTo-SecureString -String $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force)
+            Remove-Item $pfx
+            $override = @{ bundle = @{ windows = @{ certificateThumbprint = $cert.Thumbprint } } } | ConvertTo-Json -Depth 5
+            $mode = 'certificate'
+          }
+          elseif ($env:AZURE_SIGNING_ENDPOINT -and $env:AZURE_SIGNING_ACCOUNT -and $env:AZURE_SIGNING_PROFILE) {
+            cargo install trusted-signing-cli --locked
+            $cmd = "trusted-signing-cli -e $($env:AZURE_SIGNING_ENDPOINT) -a $($env:AZURE_SIGNING_ACCOUNT) -c $($env:AZURE_SIGNING_PROFILE) -d observe_desk %1"
+            $override = @{ bundle = @{ windows = @{ signCommand = $cmd } } } | ConvertTo-Json -Depth 5
+            $mode = 'azure'
+          }
+          else {
+            Write-Warning 'No code-signing certificate configured: the installer will be UNSIGNED.'
+          }
+          Set-Content -Path "$env:RUNNER_TEMP/signing.json" -Value $override
+          node scripts/release-tools.mjs merge apps/desk/src-tauri/tauri.ci.conf.json apps/desk/src-tauri/tauri.release.conf.json "$env:RUNNER_TEMP/signing.json"
+          "mode=$mode" >> $env:GITHUB_OUTPUT
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Used by trusted-signing-cli while the installer is being signed (option B).
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+        with:
+          projectPath: apps/desk
+          tagName: ${{ env.TAG }}
+          releaseName: 'observe_desk ${{ env.TAG }}'
+          releaseBody: 'See the assets below to download the installer. Existing installs will offer this update once the release is published.'
+          releaseDraft: true
+          prerelease: false
+          args: --config src-tauri/tauri.ci.conf.json
+
+      - name: Check the installer and update signature
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem apps/desk/src-tauri/target/release/bundle/nsis -Filter *-setup.exe | Select-Object -First 1
+          if (-not $setup) { Write-Error 'No installer was built.'; exit 1 }
+          $sig = "$($setup.FullName).sig"
+          if (-not (Test-Path $sig)) { Write-Error 'The update signature (.sig) is missing.'; exit 1 }
+          node scripts/release-tools.mjs check-sig $sig $env:TAG
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $auth = Get-AuthenticodeSignature $setup.FullName
+          Write-Host "Code signing mode: ${{ steps.signing.outputs.mode }}; Authenticode status: $($auth.Status)"
+          if ('${{ steps.signing.outputs.mode }}' -ne 'none' -and $auth.Status -ne 'Valid') {
+            Write-Error "The installer should be signed but its signature is $($auth.Status)."
+            exit 1
+          }
+          Write-Host "Installer: $($setup.Name)"

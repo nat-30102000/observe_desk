@@ -3,3 +3,6 @@ dist/
 target/
 *.log
 .DS_Store
+*.key
+tauri.ci.conf.json
+.env

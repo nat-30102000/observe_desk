@@ -219,3 +219,5 @@ code { font-family: 'IBM Plex Mono', monospace; font-size: 12px; background: var
 .meter > i { display: block; height: 100%; background: var(--green); transition: width 0.08s; }
 .timer { font-family: 'IBM Plex Mono', monospace; font-size: 22px; text-align: center; }
 audio { width: 100%; }
+
+.pill.update { background: #ffc93c; box-shadow: 3px 3px 0 var(--ink); }

@@ -74,7 +74,17 @@ npm run tauri -w @observe/desk build
 - [ ] Untick it: the entry disappears from Startup apps
 - [ ] Move or reinstall the app, then tick it again: it points at the new location
 
-Known gaps (not bugs to report, just things that do not exist yet): no auto-update, installer not code-signed.
+**Updates** (after the first signed release exists, see `RELEASING.md`)
+- [ ] In a build made with `tauri build` **without** the release config (what you get from section 1), Desk > Settings > Updates says updates are only available in released builds
+- [ ] In an installed release build: Settings > Updates shows the version, **Check for updates** says "You have the latest version"
+- [ ] Publish a newer release: the old install shows it within a minute of **Check for updates**, Nib announces it once, and the Nib menu shows "Update to ..."
+- [ ] **Update and restart**: progress shows, the app restarts on the new version, queued captures are still there
+- [ ] Tamper test: a release whose `.sig` belongs to a different file must be rejected with a signature error
+
+**Installer signing**
+- [ ] Installer properties > Digital Signatures lists your name (only if you set up signing); `Get-AuthenticodeSignature` says Valid
+
+Known gaps (not bugs to report, just things that do not exist yet): none of the above has been exercised end to end yet.
 
 ## 3. Connect Obsidian
 

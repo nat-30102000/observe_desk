@@ -9,7 +9,7 @@ export function useFeeds(): FeedsState {
     let off = () => undefined as void;
     void listenBus<FeedsState>('feeds:state', setState).then((u) => {
       off = u;
-      void emitBus('feeds:state?');
+      void emitBus('feeds:state-request');
     });
     return () => off();
   }, []);

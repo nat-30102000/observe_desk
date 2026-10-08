@@ -1,4 +1,5 @@
 import { DEFAULT_FOLDERS, type Folders, type ProviderId } from '@observe/core';
+import { INITIAL_UPDATES, type UpdatesState } from './updates';
 
 export interface EmailSettings {
   enabled: boolean;
@@ -39,11 +40,19 @@ export interface AiSettings {
   providers: Partial<Record<ProviderId, { model?: string; baseUrl?: string }>>;
 }
 
+export interface UpdateSettings {
+  /** Look for new versions in the background. */
+  autoCheck: boolean;
+  /** Install them without asking when Nib is idle. */
+  autoInstall: boolean;
+}
+
 export interface Settings {
   baseUrl: string;
   folders: Folders;
   ai: AiSettings;
   email: EmailSettings;
+  updates: UpdateSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -51,6 +60,7 @@ export const DEFAULT_SETTINGS: Settings = {
   folders: DEFAULT_FOLDERS,
   ai: { providers: {} },
   email: DEFAULT_EMAIL,
+  updates: { autoCheck: true, autoInstall: false },
 };
 
 export interface RecentItem {
@@ -82,6 +92,7 @@ export interface AppState {
   recent: RecentItem[];
   /** Latest thing Nib wants to say. `at` changes on every message so repeats still show. */
   speech: { text: string; at: number } | null;
+  updates: UpdatesState;
 }
 
 export const INITIAL_STATE: AppState = {
@@ -94,4 +105,5 @@ export const INITIAL_STATE: AppState = {
   queue: [],
   recent: [],
   speech: null,
+  updates: INITIAL_UPDATES,
 };

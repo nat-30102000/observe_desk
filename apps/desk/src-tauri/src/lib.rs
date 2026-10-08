@@ -172,6 +172,34 @@ fn read_book(path: String) -> Result<tauri::ipc::Response, String> {
     Ok(tauri::ipc::Response::new(bytes))
 }
 
+/// The updater is switched on only in release builds that carry a real public key
+/// (see tauri.release.conf.json). Everywhere else the app never talks to an update server.
+fn updater_configured(app: &AppHandle) -> bool {
+    app.config()
+        .plugins
+        .0
+        .get("updater")
+        .and_then(|v| v.get("pubkey"))
+        .and_then(|p| p.as_str())
+        .is_some_and(|p| p.len() > 40 && !p.contains("REPLACE"))
+}
+
+#[tauri::command]
+fn updates_enabled(app: AppHandle) -> bool {
+    updater_configured(&app)
+}
+
+#[tauri::command]
+fn app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
+/// Restart into the freshly installed version.
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+    app.restart();
+}
+
 fn reveal(app: &AppHandle, label: &str) {
     if let Some(w) = app.get_webview_window(label) {
         let _ = w.show();
@@ -202,17 +230,23 @@ fn toggle_pet(app: &AppHandle) {
     }
 }
 
+/// Size of Nib's window in logical pixels. Keep in sync with tauri.conf.json.
+const PET_WIDTH: f64 = 360.0;
+const PET_HEIGHT: f64 = 420.0;
+
 /// Park Nib near the bottom-right corner of the primary monitor.
+/// Uses the configured size rather than asking the window: it can still report 0x0 this early.
 fn place_pet(app: &AppHandle) {
     let Some(w) = app.get_webview_window("pet") else { return };
     let Ok(Some(monitor)) = w.primary_monitor() else { return };
-    let Ok(size) = w.outer_size() else { return };
     let scale = monitor.scale_factor();
+    let width = (PET_WIDTH * scale) as i32;
+    let height = (PET_HEIGHT * scale) as i32;
     let margin = (24.0 * scale) as i32;
     let taskbar = (56.0 * scale) as i32;
-    let x = monitor.position().x + monitor.size().width as i32 - size.width as i32 - margin;
-    let y = monitor.position().y + monitor.size().height as i32 - size.height as i32 - taskbar;
-    let _ = w.set_position(PhysicalPosition::new(x, y));
+    let x = monitor.position().x + monitor.size().width as i32 - width - margin;
+    let y = monitor.position().y + monitor.size().height as i32 - height - taskbar;
+    let _ = w.set_position(PhysicalPosition::new(x.max(monitor.position().x), y.max(monitor.position().y)));
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
@@ -298,6 +332,9 @@ pub fn run() {
             http_get,
             http_request,
             read_book,
+            updates_enabled,
+            app_version,
+            restart_app,
             mail::imap_fetch,
             snip::snip_start,
             snip::snip_image,
@@ -338,6 +375,9 @@ pub fn run() {
             }
             if let Err(e) = handle.global_shortcut().register(snip) {
                 eprintln!("could not register Ctrl+Alt+S: {e}");
+            }
+            if updater_configured(&handle) {
+                handle.plugin(tauri_plugin_updater::Builder::new().build())?;
             }
             bridge::start(handle);
             Ok(())

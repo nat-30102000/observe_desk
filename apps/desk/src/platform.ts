@@ -111,20 +111,23 @@ export function currentView(): string {
 
 type Handler<T> = (payload: T) => void;
 
+/** Tauri only accepts letters, digits and - / : _ in event names. */
+export const eventName = (name: string): string => `bus:${name}`;
+
 /** Messages between windows. Tauri events in the app, BroadcastChannel in a browser. */
 const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('observe-desk') : null;
 
 export async function emitBus(name: string, payload?: unknown): Promise<void> {
   if (isTauri()) {
     const { emit } = await import('@tauri-apps/api/event');
-    await emit(`bus:${name}`, payload ?? null);
+    await emit(eventName(name), payload ?? null);
   } else channel?.postMessage({ name, payload });
 }
 
 export async function listenBus<T>(name: string, handler: Handler<T>): Promise<() => void> {
   if (isTauri()) {
     const { listen } = await import('@tauri-apps/api/event');
-    return listen<T>(`bus:${name}`, (e) => handler(e.payload));
+    return listen<T>(eventName(name), (e) => handler(e.payload));
   }
   const fn = (e: MessageEvent<{ name: string; payload: T }>) => {
     if (e.data.name === name) handler(e.data.payload);
