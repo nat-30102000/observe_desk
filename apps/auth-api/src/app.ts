@@ -10,13 +10,42 @@ interface Authed extends Request {
   access?: AccessContext;
 }
 
-export function createApp(deps: { config: Config; store: Store; verify: (token: string) => Promise<Principal> }): express.Express {
-  const { config, store, verify } = deps;
+export function createApp(deps: { config: Config; store: Store; verify: (token: string) => Promise<Principal>; invite?: (email: string) => Promise<void> }): express.Express {
+  const { config, store, verify, invite } = deps;
   const app = express();
   app.use(cors({ origin: config.corsOrigin }));
   app.use(express.json());
 
   app.get('/health', (_req, res) => void res.json({ ok: true }));
+
+  // Sign-in helper, called before the user is signed in. Makes sure a guest account exists for a Gmail address.
+  // Limited to Google-federated domains and rate limited, because anyone can call it.
+  const sent: number[] = [];
+  const perIp = new Map<string, number[]>();
+  const recent = (list: number[]) => list.filter((t) => Date.now() - t < 3_600_000);
+  app.post('/auth/invite', async (req, res) => {
+    const cfg = config.invite;
+    if (!cfg || !invite) return void res.status(404).json({ error: 'not_found' });
+    const email = String(req.body?.email ?? '').trim().toLowerCase();
+    const domain = email.split('@')[1] ?? '';
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || email.length > 254 || !cfg.domains.includes(domain)) {
+      return void res.status(400).json({ error: 'bad_request', message: `Only ${cfg.domains.join(', ')} addresses can be used here.` });
+    }
+    const ip = req.ip ?? 'unknown';
+    const mine = recent(perIp.get(ip) ?? []);
+    const all = recent(sent);
+    if (mine.length >= 5 || all.length >= cfg.perHour) return void res.status(429).json({ error: 'rate_limited', message: 'Too many sign-in attempts. Try again later.' });
+    mine.push(Date.now());
+    perIp.set(ip, mine);
+    sent.splice(0, sent.length, ...all, Date.now());
+    try {
+      await invite(email);
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('invite failed:', e instanceof Error ? e.message : e);
+      res.status(502).json({ error: 'invite_failed', message: 'Could not prepare your account. You can still continue and use "Create one".' });
+    }
+  });
 
   // 401: the token is missing or not valid.
   const requireAuth = async (req: Authed, res: Response, next: NextFunction) => {

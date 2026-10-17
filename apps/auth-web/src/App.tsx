@@ -1,21 +1,35 @@
 import { AuthenticatedTemplate, UnauthenticatedTemplate, useMsal } from '@azure/msal-react';
-import { useEffect, useState } from 'react';
-import { ApiError, callApi, type Me } from './api';
+import { useEffect, useState, type FormEvent } from 'react';
+import { ApiError, callApi, prepareGuest, type Me } from './api';
 import { apiScopes, tenantAuthority } from './msal';
 
 function Login() {
   const { instance, inProgress } = useMsal();
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const idle = inProgress === 'none' && !busy;
+
+  const gmail = async (e: FormEvent) => {
+    e.preventDefault();
+    const address = email.trim().toLowerCase();
+    setBusy(true);
+    await prepareGuest(address);
+    await instance.loginRedirect({ scopes: apiScopes, authority: tenantAuthority, loginHint: address, prompt: 'login' });
+  };
+
   return (
     <main className="card">
       <h1>Welcome to MyApp</h1>
-      <p>Sign in with your work, school or Google account.</p>
-      <button className="primary" disabled={inProgress !== 'none'} onClick={() => void instance.loginRedirect({ scopes: apiScopes, prompt: 'select_account' })}>
+      <p>Sign in with your work, school or personal Microsoft account.</p>
+      <button className="primary" disabled={!idle} onClick={() => void instance.loginRedirect({ scopes: apiScopes, prompt: 'select_account' })}>
         Continue with Microsoft
       </button>
       {tenantAuthority && (
-        <button disabled={inProgress !== 'none'} onClick={() => void instance.loginRedirect({ scopes: apiScopes, prompt: 'select_account', authority: tenantAuthority })}>
-          Continue with Gmail
-        </button>
+        <form onSubmit={(e) => void gmail(e)}>
+          <p className="or">or use a Gmail address</p>
+          <input type="email" required placeholder="you@gmail.com" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <button disabled={!idle || !email.trim()}>Continue with Gmail</button>
+        </form>
       )}
     </main>
   );
