@@ -5,6 +5,7 @@ body { margin: 0; min-height: 100vh; display: grid; place-items: center; backgro
 h1 { margin-top: 0; }
 button { font: inherit; padding: .6rem 1.2rem; border-radius: 8px; border: 1px solid #8884; cursor: pointer; }
 button.primary { background: #0067b8; color: #fff; border-color: #0067b8; }
+main.card button { display: block; width: 100%; margin-top: .75rem; }
 button:disabled { opacity: .6; cursor: default; }
 dl { display: grid; grid-template-columns: max-content 1fr; gap: .4rem 1rem; }
 dt { font-weight: 600; } dd { margin: 0; }

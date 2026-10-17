@@ -153,6 +153,8 @@ VITE_AUTHORITY=https://login.microsoftonline.com/common
 
 ---
 
+> **Why two buttons.** On the shared `/common` sign-in page, typing a Gmail address gives "We couldn't find an account with that username": Microsoft only looks for a Microsoft account with that address and never offers Google. Gmail sign-in and sign-up only works through your own tenant, so the app shows a second button, **Continue with Gmail**, when `VITE_TENANT_ID` is set. It signs in with `https://login.microsoftonline.com/<TENANT-ID>`, where the Google provider and the self-service user flow live. The first button stays on `/common` for work, school and personal Microsoft accounts.
+
 ## Part 6. Gmail without manual invitations (Google + self-service sign-up)
 
 Goal: a person types their Gmail address on the Microsoft sign-in page, signs in with Google, and a guest account is created for them automatically. No admin invites them. Microsoft documents this as Google federation plus a *self-service sign-up user flow* in a workforce tenant. Do Part 5 first.
@@ -185,13 +187,13 @@ Goal: a person types their Gmail address on the Microsoft sign-in page, signs in
 
 ### 6d. Point the React app at your tenant
 
-User flows run in your tenant, so for this path sign in with your tenant in the authority. In `apps/auth-web/.env.local` set:
+User flows run in your tenant, so the Gmail path signs in through your tenant. In `apps/auth-web/.env.local` add (keep `VITE_AUTHORITY` on `/common`):
 
 ```
-VITE_AUTHORITY=https://login.microsoftonline.com/<TENANT-ID>
+VITE_TENANT_ID=<TENANT-ID>
 ```
 
-and restart `npm run dev -w @observe/auth-web`.
+This shows a second button, **Continue with Gmail**. Restart `npm run dev -w @observe/auth-web`.
 
 ### 6e. Test with a Gmail address that nobody invited
 
@@ -233,7 +235,7 @@ Identities are never merged by e-mail: the same person via Microsoft and via Goo
 | API returns 401 "missing the access_as_user scope" | Part 2 step 1 not done, or scope name misspelled |
 | Browser console CORS error | `CORS_ORIGIN` must equal the web origin exactly |
 | You are `Employee` instead of `SuperAdmin` | `BOOTSTRAP_ADMINS` needs `tenantId:objectId` (your **user** object id, not the app's); restart the API and refresh |
-| Gmail user: "account not found" / no Google option | Google identity provider not saved (6b), self-service sign-up toggle off (6c step 1), the app is not added to the user flow (6c step 3), or `VITE_AUTHORITY` is not tenant-specific (6d) |
+| Gmail user: "account not found" / no Google option | Google identity provider not saved (6b), self-service sign-up toggle off (6c step 1), the app is not added to the user flow (6c step 3), or `VITE_TENANT_ID` is not set so you are not using the Gmail button (6d) |
 | Gmail user sees "approve your account" | Working as designed: activate them (6e step 4) or set `GUEST_POLICY=allow` |
 | Gmail sign-in fails inside an embedded browser | Google blocks embedded web views; use a normal browser (the React app already does) |
 

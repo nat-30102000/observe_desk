@@ -1,7 +1,7 @@
 import { AuthenticatedTemplate, UnauthenticatedTemplate, useMsal } from '@azure/msal-react';
 import { useEffect, useState } from 'react';
 import { ApiError, callApi, type Me } from './api';
-import { apiScopes } from './msal';
+import { apiScopes, tenantAuthority } from './msal';
 
 function Login() {
   const { instance, inProgress } = useMsal();
@@ -12,6 +12,11 @@ function Login() {
       <button className="primary" disabled={inProgress !== 'none'} onClick={() => void instance.loginRedirect({ scopes: apiScopes, prompt: 'select_account' })}>
         Continue with Microsoft
       </button>
+      {tenantAuthority && (
+        <button disabled={inProgress !== 'none'} onClick={() => void instance.loginRedirect({ scopes: apiScopes, prompt: 'select_account', authority: tenantAuthority })}>
+          Continue with Gmail
+        </button>
+      )}
     </main>
   );
 }
