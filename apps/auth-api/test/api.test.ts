@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/app.js';
+import { authorize } from '../src/authz.js';
 import { loadConfig } from '../src/config.js';
 import { Store } from '../src/store.js';
 import { createVerifier } from '../src/verify.js';
@@ -98,6 +99,16 @@ describe('restricted mode', () => {
     expect(users.status).toBe(200);
     const victim = users.body.find((u: any) => u.roles.includes('Employee') && !u.roles.includes('Admin'));
     expect((await s.call(`/api/admin/users/${victim.id}`, admin, { method: 'PATCH', body: JSON.stringify({ role: 'Admin' }) })).body.roles).toEqual(['Admin']);
+  });
+
+  it('promotes a listed bootstrap admin who signed in before being listed', () => {
+    const store = new Store();
+    store.createOrg(TECHNORUCS, 'Technorucs');
+    const principal = { tenantId: TECHNORUCS, subject: 'late-admin', issuer: `https://login.microsoftonline.com/${TECHNORUCS}/v2.0` };
+    const before = authorize(principal, store, loadConfig({ API_CLIENT_ID: CLIENT }));
+    expect(before.ok && before.ctx.roles).toEqual(['Employee']);
+    const after = authorize(principal, store, loadConfig({ API_CLIENT_ID: CLIENT, BOOTSTRAP_ADMINS: `${TECHNORUCS}:late-admin` }));
+    expect(after.ok && after.ctx.roles).toEqual(['Employee', 'SuperAdmin', 'Admin']);
   });
 
   it('suspended and deleted users are denied at once, even with a valid token', async () => {

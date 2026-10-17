@@ -90,6 +90,9 @@ export class Store {
     const u = this.user(userId);
     if (u) { u.status = status; this.save(); }
   }
+  addRole(userId: string, role: Role): void {
+    if (!this.rolesOf(userId).includes(role)) { this.db.roles.push({ userId, role }); this.save(); }
+  }
   setUserRole(userId: string, role: 'Admin' | 'Employee'): void {
     // SuperAdmin is platform-level and never changed through the org admin API.
     this.db.roles = this.db.roles.filter((r) => r.userId !== userId || r.role === 'SuperAdmin');
