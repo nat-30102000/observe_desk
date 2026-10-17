@@ -168,6 +168,17 @@ describe('open mode', () => {
   let s: ReturnType<typeof start>;
   beforeAll(() => void (s = start({ AUTH_MODE: 'open' })));
   afterAll(() => s.close());
+  it('accepts personal Microsoft accounts straight away as Employees in one shared organization', async () => {
+    const tid = '9188040d-6c67-4c5b-b112-36a304b66dad';
+    const a = await s.call('/api/me', await token({ tid, oid: 'bbbbbbbb-0000-0000-0000-00000000f001', idp: 'live.com' }));
+    expect(a.status).toBe(200);
+    expect(a.body.roles).toEqual(['Employee']);
+    expect(a.body.organization.name).toBe('Personal Microsoft accounts');
+    const b = await s.call('/api/me', await token({ tid, oid: 'bbbbbbbb-0000-0000-0000-00000000f002' }));
+    expect(b.body.organization.id).toBe(a.body.organization.id);
+    expect(b.body.user.id).not.toBe(a.body.user.id);
+  });
+
   it('accepts any tenant and registers it', async () => {
     expect((await s.call('/api/me', await token({ tid: RANDOM }))).status).toBe(200);
     expect(s.store.orgByTenant(RANDOM)?.status).toBe('approved');

@@ -13,6 +13,9 @@ export interface Principal {
   guest: boolean;
 }
 
+/** Tenant id Microsoft uses for every personal (outlook.com, hotmail.com, live.com...) account. */
+export const PERSONAL_ACCOUNTS_TENANT = '9188040d-6c67-4c5b-b112-36a304b66dad';
+
 export class AuthError extends Error {}
 
 /** Keys for tokens from any Entra tenant (and personal Microsoft accounts). */
@@ -50,7 +53,7 @@ export function createVerifier(opts: { audiences: string[]; getKey: JWTVerifyGet
         email: typeof payload.preferred_username === 'string' ? payload.preferred_username : undefined,
         idp: typeof payload.idp === 'string' ? payload.idp : undefined,
         // `acct` is an optional access-token claim (0 member, 1 guest). Without it, an idp that is not this tenant also marks a guest.
-        guest: String(payload.acct) === '1' || (typeof payload.idp === 'string' && !payload.idp.toLowerCase().includes(tid.toLowerCase())),
+        guest: tid.toLowerCase() !== PERSONAL_ACCOUNTS_TENANT && (String(payload.acct) === '1' || (typeof payload.idp === 'string' && !payload.idp.toLowerCase().includes(tid.toLowerCase()))),
       };
     } catch (e) {
       if (e instanceof AuthError) throw e;

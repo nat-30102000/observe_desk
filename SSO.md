@@ -129,6 +129,30 @@ curl -X POST  -H "Authorization: Bearer $TOKEN" -H "content-type: application/js
 
 ---
 
+## Open to every Microsoft account (work, school and personal), no invite, no approval
+
+Use this when anyone with a Microsoft account may sign in straight away.
+
+**API `.env`**
+```
+AUTH_MODE=open
+```
+Any Entra tenant is accepted and registered on its first sign-in, and every user becomes an Employee at once. All personal accounts (outlook.com, hotmail.com, live.com) share Microsoft's one personal-account tenant, so they appear together as one organization called "Personal Microsoft accounts". Each person is still their own user, and an Admin can suspend any of them.
+
+**Web `.env.local`**
+```
+VITE_AUTHORITY=https://login.microsoftonline.com/common
+```
+`/common` is what lets personal and work accounts from any company reach the sign-in page. A tenant-specific authority would block them.
+
+**Entra (the one app registration)**: Part 1 step 3 must be *any organizational directory and personal Microsoft accounts*, and `requestedAccessTokenVersion` must be `2` (Part 1 step 7). Without both, personal accounts get an error.
+
+**The part you cannot control: consent in other companies.** The first time someone from another company signs in, Microsoft asks them to consent to your app. If their company's admin has restricted user consent, they see "Need admin approval" and no code on your side can bypass it. By default Microsoft lets users consent only to apps from a **verified publisher**. To avoid most of these prompts, complete **Publisher verification** (Entra > your app > Branding & properties > Publisher verification, which needs a Microsoft Cloud Partner Program ID). Personal accounts consent for themselves and are not affected.
+
+**Combining this with Gmail (Part 6):** open mode plus `/common` works for Microsoft accounts. Gmail users sign up as guests of your tenant, and the guest policy still applies to them (`GUEST_POLICY=pending` or `allow`). Whether the Gmail self-service sign-up appears under `/common` or only under your tenant-specific authority is the untested point from Part 6.
+
+---
+
 ## Part 6. Gmail without manual invitations (Google + self-service sign-up)
 
 Goal: a person types their Gmail address on the Microsoft sign-in page, signs in with Google, and a guest account is created for them automatically. No admin invites them. Microsoft documents this as Google federation plus a *self-service sign-up user flow* in a workforce tenant. Do Part 5 first.

@@ -1,6 +1,6 @@
 import type { Config } from './config.js';
 import type { Organization, Role, Store, User } from './store.js';
-import type { Principal } from './verify.js';
+import { PERSONAL_ACCOUNTS_TENANT, type Principal } from './verify.js';
 
 export type DenyReason = 'organization_not_approved' | 'organization_suspended' | 'pending_approval' | 'user_suspended' | 'user_deleted' | 'no_membership' | 'no_role';
 
@@ -24,7 +24,8 @@ export function authorize(p: Principal, store: Store, config: Config): { ok: tru
   let org = store.orgByTenant(p.tenantId);
   if (!org) {
     if (config.mode !== 'open') return { ok: false, reason: 'organization_not_approved' };
-    org = store.createOrg(p.tenantId, p.tenantId);
+    // Every personal Microsoft account shares one tenant id, so they form one organization.
+    org = store.createOrg(p.tenantId, p.tenantId === PERSONAL_ACCOUNTS_TENANT ? 'Personal Microsoft accounts' : p.tenantId);
   }
   if (org.status !== 'approved') return { ok: false, reason: 'organization_suspended' };
 
