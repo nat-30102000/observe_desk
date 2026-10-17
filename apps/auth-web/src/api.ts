@@ -18,6 +18,7 @@ export class ApiError extends Error {
 const REASONS: Record<string, string> = {
   organization_not_approved: 'Your organization has not been approved for this application yet.',
   organization_suspended: 'Your organization’s access has been suspended.',
+  pending_approval: 'Your sign-up worked. An administrator needs to approve your account before you can use the application.',
   user_suspended: 'Your account has been suspended. Contact your administrator.',
   user_deleted: 'Your account has been removed.',
   no_membership: 'You are not a member of an approved organization.',

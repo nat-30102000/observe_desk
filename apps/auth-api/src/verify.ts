@@ -9,6 +9,8 @@ export interface Principal {
   email?: string;
   /** Identity provider that authenticated the user, when Entra reports one (e.g. google.com). */
   idp?: string;
+  /** Guest in the token's tenant (self-service sign-up, Google federation, or another company's account). */
+  guest: boolean;
 }
 
 export class AuthError extends Error {}
@@ -47,6 +49,8 @@ export function createVerifier(opts: { audiences: string[]; getKey: JWTVerifyGet
         name: typeof payload.name === 'string' ? payload.name : undefined,
         email: typeof payload.preferred_username === 'string' ? payload.preferred_username : undefined,
         idp: typeof payload.idp === 'string' ? payload.idp : undefined,
+        // `acct` is an optional access-token claim (0 member, 1 guest). Without it, an idp that is not this tenant also marks a guest.
+        guest: String(payload.acct) === '1' || (typeof payload.idp === 'string' && !payload.idp.toLowerCase().includes(tid.toLowerCase())),
       };
     } catch (e) {
       if (e instanceof AuthError) throw e;

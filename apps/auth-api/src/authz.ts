@@ -2,7 +2,7 @@ import type { Config } from './config.js';
 import type { Organization, Role, Store, User } from './store.js';
 import type { Principal } from './verify.js';
 
-export type DenyReason = 'organization_not_approved' | 'organization_suspended' | 'user_suspended' | 'user_deleted' | 'no_membership' | 'no_role';
+export type DenyReason = 'organization_not_approved' | 'organization_suspended' | 'pending_approval' | 'user_suspended' | 'user_deleted' | 'no_membership' | 'no_role';
 
 export interface AccessContext {
   user: User;
@@ -45,10 +45,13 @@ export function authorize(p: Principal, store: Store, config: Config): { ok: tru
       subject: p.subject,
       organizationId: org.id,
       roles: admin ? ['SuperAdmin', 'Admin'] : ['Employee'],
+      // Anyone can create a guest account through self-service sign-up, so guests wait for approval by default.
+      status: p.guest && !admin && config.guestPolicy === 'pending' ? 'pending' : 'active',
     });
   }
   // Listed bootstrap admins are promoted even if they signed in before being listed.
   if (config.bootstrapAdmins.includes(`${p.tenantId}:${p.subject}`)) (['SuperAdmin', 'Admin'] as const).forEach((r) => store.addRole(user!.id, r));
+  if (user.status === 'pending') return { ok: false, reason: 'pending_approval' };
   if (user.status === 'suspended') return { ok: false, reason: 'user_suspended' };
   if (user.status === 'deleted') return { ok: false, reason: 'user_deleted' };
   if (store.membership(user.id, org.id)?.status !== 'active') return { ok: false, reason: 'no_membership' };

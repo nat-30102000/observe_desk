@@ -39,6 +39,7 @@ Portal: <https://entra.microsoft.com>. Make sure the top-right directory is your
    - In the *Microsoft Graph App Manifest* editor set `"api": { "requestedAccessTokenVersion": 2, ... }` (keep the other `api` properties as they are).
    - If you see the older *AAD Graph* manifest instead, set `"accessTokenAcceptedVersion": 2`.
    - **Save**.
+8. Left menu **Token configuration > Add optional claim > Access** -> tick `acct` -> **Add** (accept the prompt about Graph permissions if shown). `acct` is `1` for guests and lets the API tell self-signed-up guests (Gmail users) from your own employees.
 
 ## Part 2. Register the React (SPA) app
 
@@ -72,6 +73,7 @@ API_CLIENT_ID=<API-ID>
 AUTH_MODE=restricted
 SEED_TENANTS=<TENANT-ID>=Technorucs,<MINDGATE-TENANT-ID>=Mindgate
 BOOTSTRAP_ADMINS=<TENANT-ID>:<MY-OID>
+GUEST_POLICY=pending
 CORS_ORIGIN=http://localhost:5174
 DATA_FILE=./data.json
 PORT=3001
@@ -79,6 +81,7 @@ PORT=3001
 
 - All ids are lower-case GUIDs. `SEED_TENANTS` is `tenantId=Display Name`, comma separated.
 - `BOOTSTRAP_ADMINS` makes you `SuperAdmin` + `Admin` the first time you sign in (and promotes you if you signed in earlier).
+- `GUEST_POLICY=pending` (default): people who sign themselves up (Gmail etc.) are created in your database as **pending** and see "An administrator needs to approve your account" until an Admin sets them `active`. `allow` lets guests straight in as Employee.
 - Use `AUTH_MODE=open` only if any company may sign in; tenants then get approved automatically.
 
 ```bash
@@ -131,32 +134,61 @@ curl -X POST  -H "Authorization: Bearer $TOKEN" -H "content-type: application/js
 
 ---
 
-## Part 6. Add Google (optional, after Part 5 works)
+## Part 6. Gmail without manual invitations (Google + self-service sign-up)
 
-Google only works for **Gmail users you have invited as guests** to your Entra tenant. It is not a button that lets any Gmail address in.
+Goal: a person types their Gmail address on the Microsoft sign-in page, signs in with Google, and a guest account is created for them automatically. No admin invites them. Microsoft documents this as Google federation plus a *self-service sign-up user flow* in a workforce tenant. Do Part 5 first.
 
 ### 6a. Google Cloud (the OAuth client)
 
 1. <https://console.developers.google.com>, create a project (e.g. `Entra B2B`).
-2. **APIs & Services > OAuth consent screen**: User type **External**, set app name, support email, developer email. Under *Authorized domains* add `microsoftonline.com`. Save.
-3. On the consent screen **Publish app** (otherwise only listed test users can sign in).
+2. **APIs & Services > OAuth consent screen**: User type **External**; set app name, support email, developer email. Under *Authorized domains* add `microsoftonline.com`. Save.
+3. On the consent screen click **Publish app** (otherwise only listed test users can sign in).
 4. **Credentials > Create credentials > OAuth client ID > Web application**. Under *Authorized redirect URIs* add all three:
    - `https://login.microsoftonline.com`
    - `https://login.microsoftonline.com/te/<TENANT-ID>/oauth2/authresp`
    - `https://login.microsoftonline.com/te/<tenant-name>.onmicrosoft.com/oauth2/authresp`
-5. **Create**, copy the **Client ID** and **Client secret**.
+5. **Create**; copy the **Client ID** and **Client secret**.
 
-### 6b. Entra
+### 6b. Entra: Google as an identity provider
 
 1. Sign in as at least *External Identity Provider Administrator*.
-2. **Entra ID > External Identities > All identity providers**, on the **Google** row click **Configure**, paste the Client ID and secret, **Save**.
-3. **Users > Invite external user**, enter the person's Gmail address, send. The person must open the invitation and redeem it with that Google account.
+2. **Entra ID > External Identities > All identity providers**, **Google** row > **Configure**, paste Client ID and secret, **Save**.
 
-### 6c. What the Gmail user does
+### 6c. Entra: turn on self-service sign-up
 
-1. Open the React app, click **Continue with Microsoft**.
-2. On the Microsoft page choose **Sign-in options > Sign in to an organization**, type your organization name (or domain, e.g. `technorucs.onmicrosoft.com`), then sign in with Google. (Entering the Gmail address directly on the first screen does not find the guest; this extra step is how Entra's common endpoint works.)
-3. The app shows **Signed in with: Google**. The tenant is yours, so the organization must already be approved (it is, if it is in `SEED_TENANTS`).
+1. **Entra ID > External Identities > External collaboration settings**: set **Enable guest self-service sign up via user flows** to **Yes**, **Save**. (Needs at least *User Administrator*.)
+2. **Entra ID > External Identities > User flows > New user flow**:
+   - Name: `observe-signup` (Entra prefixes it with `B2X_1_`).
+   - Identity providers: tick **Google** (and optionally *Email one-time passcode* for people without a Google or Microsoft account).
+   - User attributes: **Display Name** is enough. Attributes are only collected the first time.
+   - **Create**.
+3. Open the new flow > **Applications > Add application** > pick **observe-auth-web** (the React app from Part 2) > **Select**.
+
+### 6d. Point the React app at your tenant
+
+User flows run in your tenant, so for this path sign in with your tenant in the authority. In `apps/auth-web/.env.local` set:
+
+```
+VITE_AUTHORITY=https://login.microsoftonline.com/<TENANT-ID>
+```
+
+and restart `npm run dev -w @observe/auth-web`.
+
+### 6e. Test with a Gmail address that nobody invited
+
+1. Open <http://localhost:5174> in a private window, click **Continue with Microsoft**.
+2. Type the Gmail address, choose Google, sign in. Accept the consent prompt. The guest account is created in your tenant.
+3. Expected: the app shows "Your sign-up worked. An administrator needs to approve your account" (`pending_approval`).
+4. Sign in as an Admin, list users (`GET /api/admin/users`), find the user with `"status":"pending"`, and activate:
+   `PATCH /api/admin/users/<id>` with `{"status":"active"}`.
+5. The Gmail user refreshes and sees "Signed in with: Google".
+
+### 6f. What changes when people sign themselves up
+
+- **Their token's tenant is yours.** A self-signed-up guest gets `tid` = your tenant, `acct` = 1, so the API puts them in *your* organization (e.g. Technorucs) as `pending`, not in any company of their own. That is why `GUEST_POLICY=pending` is the default: otherwise anyone with a Gmail account could create themselves an Employee account in your approved organization.
+- **Other companies' employees** signing in through the common endpoint keep their own tenant and are routed by `tid` as before. If you use the tenant-specific authority in 6d, other companies' employees may also be treated as guests of your tenant and land in `pending`. Decide which you want: `/common` for "company tenants are approved separately", tenant-specific for "everyone external signs up to my tenant and I approve each person".
+- **Not verified by me:** whether the Microsoft sign-in page offers the self-service sign-up journey under `/common` or only under a tenant-specific authority. Microsoft's docs describe the user flow per application and tenant; test both authorities in step 6e and keep the one that works for you.
+- If the guest's token has no `acct` claim (step 8 of Part 1 missed), the API still treats a token whose `idp` is not your tenant (for example `google.com`) as a guest.
 
 ---
 
@@ -164,8 +196,8 @@ Google only works for **Gmail users you have invited as guests** to your Entra t
 
 1. Token valid? Signature, RS256, issuer `https://login.microsoftonline.com/<tid>/v2.0`, audience `<API-ID>` or `api://<API-ID>`, `ver` 2.0, not expired, scope `access_as_user`. Otherwise **401**.
 2. Organization for the token's tenant approved? Not found -> `organization_not_approved` (restricted mode); suspended -> `organization_suspended`. **403**.
-3. First sign-in from an approved organization creates the user as `Employee`.
-4. User suspended / deleted / not an active member / no role -> `user_suspended`, `user_deleted`, `no_membership`, `no_role`. **403**.
+3. First sign-in from an approved organization creates the user as `Employee`. Guests (`acct` = 1) are created as `pending` unless `GUEST_POLICY=allow`.
+4. User suspended / deleted / not an active member / no role -> `pending_approval`, `user_suspended`, `user_deleted`, `no_membership`, `no_role`. **403**.
 5. Permission check on the route: `Employee` = profile; `Admin` adds `users:manage` (own organization only); `SuperAdmin` adds `orgs:manage`.
 
 Identities are never merged by e-mail: the same person via Microsoft and via Google becomes two users.
@@ -182,7 +214,9 @@ Identities are never merged by e-mail: the same person via Microsoft and via Goo
 | API returns 401 "missing the access_as_user scope" | Part 2 step 6 not done, or scope name misspelled |
 | Browser console CORS error | `CORS_ORIGIN` must equal the web origin exactly |
 | You are `Employee` instead of `SuperAdmin` | `BOOTSTRAP_ADMINS` needs `tenantId:objectId` (your **user** object id, not the app's); restart the API and refresh |
-| Gmail user: "account not found" | Not invited/redeemed, Google not configured, or they skipped *Sign in to an organization* |
+| Gmail user: "account not found" / no Google option | Google identity provider not saved (6b), self-service sign-up toggle off (6c step 1), the app is not added to the user flow (6c step 3), or `VITE_AUTHORITY` is not tenant-specific (6d) |
+| Gmail user sees "approve your account" | Working as designed: activate them (6e step 4) or set `GUEST_POLICY=allow` |
+| Gmail sign-in fails inside an embedded browser | Google blocks embedded web views; use a normal browser (the React app already does) |
 
 ## Edge cases to test (Phase 4)
 

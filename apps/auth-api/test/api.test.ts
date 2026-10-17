@@ -17,9 +17,9 @@ const ADMIN_OID = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 let key: CryptoKey;
 let jwks: { keys: JWK[] };
 
-async function token(o: { tid?: string; oid?: string; aud?: string; scp?: string; ver?: string; idp?: string; exp?: string; iss?: string; signWith?: CryptoKey } = {}) {
+async function token(o: { tid?: string; oid?: string; aud?: string; scp?: string; ver?: string; idp?: string; acct?: string; exp?: string; iss?: string; signWith?: CryptoKey } = {}) {
   const tid = o.tid ?? TECHNORUCS;
-  return new SignJWT({ tid, oid: o.oid ?? 'bbbbbbbb-0000-0000-0000-000000000001', ver: o.ver ?? '2.0', scp: o.scp ?? 'access_as_user', name: 'Test User', preferred_username: 'test@example.com', ...(o.idp ? { idp: o.idp } : {}) })
+  return new SignJWT({ tid, oid: o.oid ?? 'bbbbbbbb-0000-0000-0000-000000000001', ver: o.ver ?? '2.0', scp: o.scp ?? 'access_as_user', name: 'Test User', preferred_username: 'test@example.com', ...(o.idp ? { idp: o.idp } : {}), ...(o.acct ? { acct: o.acct } : {}) })
     .setProtectedHeader({ alg: 'RS256', kid: 'k1' })
     .setIssuer(o.iss ?? `https://login.microsoftonline.com/${tid}/v2.0`)
     .setAudience(o.aud ?? CLIENT)
@@ -79,14 +79,9 @@ describe('restricted mode', () => {
     expect(r).toMatchObject({ status: 403, body: { reason: 'organization_not_approved' } });
   });
 
-  it('reports a Google identity federated through Entra', async () => {
-    const r = await s.call('/api/me', await token({ idp: 'google.com', oid: 'bbbbbbbb-0000-0000-0000-0000000000g1' }));
-    expect(r.body.idp).toBe('google.com');
-  });
-
   it('does not merge identities that share an e-mail address', async () => {
     const a = await s.call('/api/me', await token({ oid: 'bbbbbbbb-0000-0000-0000-00000000aaa1' }));
-    const b = await s.call('/api/me', await token({ idp: 'google.com', oid: 'bbbbbbbb-0000-0000-0000-00000000aaa2' }));
+    const b = await s.call('/api/me', await token({ oid: 'bbbbbbbb-0000-0000-0000-00000000aaa2' }));
     expect(a.body.user.id).not.toBe(b.body.user.id);
   });
 
@@ -104,11 +99,28 @@ describe('restricted mode', () => {
   it('promotes a listed bootstrap admin who signed in before being listed', () => {
     const store = new Store();
     store.createOrg(TECHNORUCS, 'Technorucs');
-    const principal = { tenantId: TECHNORUCS, subject: 'late-admin', issuer: `https://login.microsoftonline.com/${TECHNORUCS}/v2.0` };
+    const principal = { tenantId: TECHNORUCS, subject: 'late-admin', issuer: `https://login.microsoftonline.com/${TECHNORUCS}/v2.0`, guest: false };
     const before = authorize(principal, store, loadConfig({ API_CLIENT_ID: CLIENT }));
     expect(before.ok && before.ctx.roles).toEqual(['Employee']);
     const after = authorize(principal, store, loadConfig({ API_CLIENT_ID: CLIENT, BOOTSTRAP_ADMINS: `${TECHNORUCS}:late-admin` }));
     expect(after.ok && after.ctx.roles).toEqual(['Employee', 'SuperAdmin', 'Admin']);
+  });
+
+  it('guests (self-service sign-up, e.g. Gmail) wait for approval, then get in', async () => {
+    const admin = await token({ oid: ADMIN_OID });
+    const guest = await token({ oid: 'bbbbbbbb-0000-0000-0000-00000000ee01', idp: 'google.com', acct: '1' });
+    expect(await s.call('/api/me', guest)).toMatchObject({ status: 403, body: { reason: 'pending_approval' } });
+    const pending = (await s.call('/api/admin/users', admin)).body.find((u: any) => u.status === 'pending');
+    expect(pending).toBeTruthy();
+    await s.call(`/api/admin/users/${pending.id}`, admin, { method: 'PATCH', body: JSON.stringify({ status: 'active' }) });
+    const me = await s.call('/api/me', guest);
+    expect(me.status).toBe(200);
+    expect(me.body.idp).toBe('google.com');
+  });
+
+  it('a guest is recognised by its idp even without the acct claim', async () => {
+    const r = await s.call('/api/me', await token({ oid: 'bbbbbbbb-0000-0000-0000-00000000ee02', idp: 'google.com' }));
+    expect(r.body.reason).toBe('pending_approval');
   });
 
   it('suspended and deleted users are denied at once, even with a valid token', async () => {
@@ -142,6 +154,16 @@ describe('restricted mode', () => {
   });
 });
 
+describe('guest policy allow', () => {
+  let s: ReturnType<typeof start>;
+  beforeAll(() => void (s = start({ GUEST_POLICY: 'allow' })));
+  afterAll(() => s.close());
+  it('lets guests straight in as Employee', async () => {
+    const r = await s.call('/api/me', await token({ oid: 'bbbbbbbb-0000-0000-0000-00000000ee03', idp: 'google.com', acct: '1' }));
+    expect(r.body.roles).toEqual(['Employee']);
+  });
+});
+
 describe('open mode', () => {
   let s: ReturnType<typeof start>;
   beforeAll(() => void (s = start({ AUTH_MODE: 'open' })));
@@ -156,5 +178,6 @@ describe('config', () => {
   it('requires the API client id and a known mode', () => {
     expect(() => loadConfig({})).toThrow(/API_CLIENT_ID/);
     expect(() => loadConfig({ API_CLIENT_ID: 'x', AUTH_MODE: 'nope' })).toThrow(/AUTH_MODE/);
+    expect(() => loadConfig({ API_CLIENT_ID: 'x', GUEST_POLICY: 'nope' })).toThrow(/GUEST_POLICY/);
   });
 });

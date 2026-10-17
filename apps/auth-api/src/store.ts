@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 
 export type Role = 'SuperAdmin' | 'Admin' | 'Employee';
 export type OrgStatus = 'approved' | 'suspended';
-export type UserStatus = 'active' | 'suspended' | 'deleted';
+export type UserStatus = 'pending' | 'active' | 'suspended' | 'deleted';
 
 export interface Organization { id: string; name: string; tenantId: string; status: OrgStatus }
 export interface User { id: string; name: string; email?: string; status: UserStatus; createdAt: string }
@@ -64,8 +64,8 @@ export class Store {
     return this.db.users.find((u) => u.id === id);
   }
   /** Creates the user, its external identity, an active membership and its roles in one step. */
-  provision(p: { name: string; email?: string; provider: string; issuer: string; subject: string; organizationId: string; roles: Role[] }): User {
-    const user: User = { id: randomUUID(), name: p.name, email: p.email, status: 'active', createdAt: new Date().toISOString() };
+  provision(p: { name: string; email?: string; provider: string; issuer: string; subject: string; organizationId: string; roles: Role[]; status?: UserStatus }): User {
+    const user: User = { id: randomUUID(), name: p.name, email: p.email, status: p.status ?? 'active', createdAt: new Date().toISOString() };
     this.db.users.push(user);
     this.db.identities.push({ id: randomUUID(), userId: user.id, provider: p.provider, subject: p.subject, issuer: p.issuer });
     this.db.memberships.push({ userId: user.id, organizationId: p.organizationId, status: 'active' });

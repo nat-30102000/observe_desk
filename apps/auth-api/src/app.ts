@@ -54,7 +54,7 @@ export function createApp(deps: { config: Config; store: Store; verify: (token: 
     const { status, role } = req.body ?? {};
     if (target.id === req.access!.user.id && status && status !== 'active') return void res.status(400).json({ error: 'bad_request', message: 'You cannot suspend yourself.' });
     if (status !== undefined) {
-      if (!['active', 'suspended', 'deleted'].includes(status)) return void res.status(400).json({ error: 'bad_request', message: 'Unknown status' });
+      if (!['pending', 'active', 'suspended', 'deleted'].includes(status)) return void res.status(400).json({ error: 'bad_request', message: 'Unknown status' });
       store.setUserStatus(target.id, status);
     }
     if (role !== undefined) {
