@@ -6,3 +6,5 @@ target/
 *.key
 tauri.ci.conf.json
 .env
+.env.local
+apps/auth-api/data.json
