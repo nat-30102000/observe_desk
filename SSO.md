@@ -99,7 +99,6 @@ Edit `apps/auth-web/.env.local`:
 
 ```
 VITE_CLIENT_ID=<APP-ID>
-VITE_API_CLIENT_ID=<APP-ID>
 VITE_AUTHORITY=https://login.microsoftonline.com/common
 VITE_API_URL=http://localhost:3001
 ```
@@ -205,7 +204,7 @@ Identities are never merged by e-mail: the same person via Microsoft and via Goo
 | Browser: `AADSTS50011 redirect URI mismatch` | Part 1 step 4: redirect must be platform **SPA**, exactly `http://localhost:5174` |
 | Browser: `AADSTS700016 application not found` | `VITE_CLIENT_ID` wrong, or the account type is not multitenant (Part 1 step 3) |
 | `AADSTS65001` / "Need admin approval" when a Mindgate user signs in | Their tenant blocks user consent. Their admin opens `https://login.microsoftonline.com/<their-tenant-id>/adminconsent?client_id=<APP-ID>` and accepts. Apps from unverified publishers often need this |
-| API returns 401 "unexpected audience" | `API_CLIENT_ID` or `VITE_API_CLIENT_ID` is not the app's id (all three ids are the same value) |
+| API returns 401 "unexpected audience" | `API_CLIENT_ID` or `VITE_CLIENT_ID` is not the app's id (both must be the same value) |
 | API returns 401 "Only v2.0 access tokens are accepted" | Part 1 step 7 not saved |
 | API returns 401 "missing the access_as_user scope" | Part 2 step 1 not done, or scope name misspelled |
 | Browser console CORS error | `CORS_ORIGIN` must equal the web origin exactly |

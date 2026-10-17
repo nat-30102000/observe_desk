@@ -2,7 +2,8 @@ import { PublicClientApplication, type Configuration } from '@azure/msal-browser
 
 const env = import.meta.env;
 
-export const apiScopes = [`api://${env.VITE_API_CLIENT_ID}/access_as_user`];
+/** One app registration is both the SPA and the API, so the scope lives on the client id itself. */
+export const apiScopes = [`api://${env.VITE_CLIENT_ID}/access_as_user`];
 
 export const msalConfig: Configuration = {
   auth: {
