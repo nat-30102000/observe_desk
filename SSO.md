@@ -15,23 +15,23 @@ You need: a Microsoft Entra tenant where you are at least *Application Administr
 
 ---
 
-## Part 1. Register the API app
+## Part 1. Register the one app (it is both the React client and the API)
 
 Portal: <https://entra.microsoft.com>. Make sure the top-right directory is your home tenant.
 
 1. **Entra ID > App registrations > New registration**.
-2. Name: `observe-auth-api`.
+2. Name: `observe-auth`.
 3. Supported account types: **Accounts in any organizational directory (Any Microsoft Entra ID tenant - Multitenant) and personal Microsoft accounts**.
-4. Redirect URI: leave empty. Click **Register**.
+4. Redirect URI: platform **Single-page application (SPA)**, value `http://localhost:5174`. Click **Register**.
 5. On the Overview page copy:
-   - **Application (client) ID** -> this is `API_CLIENT_ID` (call it **API-ID** below).
+   - **Application (client) ID** -> this is `API_CLIENT_ID` (call it **APP-ID** below).
    - **Directory (tenant) ID** -> this is your home **TENANT-ID**.
 6. Left menu **Expose an API**:
-   1. Next to *Application ID URI* click **Add**, keep the default `api://<API-ID>`, **Save**.
+   1. Next to *Application ID URI* click **Add**, keep the default `api://<APP-ID>`, **Save**.
    2. **Add a scope** with exactly these values, then **Add scope**:
       - Scope name: `access_as_user`
       - Who can consent: **Admins and users**
-      - Admin consent display name: `Access observe-auth-api`
+      - Admin consent display name: `Access observe-auth`
       - Admin consent description: `Allows the app to call the API as the signed-in user`
       - User consent display name / description: same texts
       - State: **Enabled**
@@ -41,17 +41,13 @@ Portal: <https://entra.microsoft.com>. Make sure the top-right directory is your
    - **Save**.
 8. Left menu **Token configuration > Add optional claim > Access** -> tick `acct` -> **Add** (accept the prompt about Graph permissions if shown). `acct` is `1` for guests and lets the API tell self-signed-up guests (Gmail users) from your own employees.
 
-## Part 2. Register the React (SPA) app
+## Part 2. Let the app call its own API (no second registration)
 
-1. **App registrations > New registration**.
-2. Name: `observe-auth-web`.
-3. Supported account types: the same multitenant + personal option as Part 1.
-4. Redirect URI: platform **Single-page application (SPA)**, value `http://localhost:5174`. **Register**.
-5. Copy **Application (client) ID** -> `VITE_CLIENT_ID` (call it **SPA-ID**).
-6. **API permissions > Add a permission > My APIs > observe-auth-api > Delegated permissions** -> tick `access_as_user` -> **Add permissions**.
-7. Click **Grant admin consent for <your tenant>** and confirm. (Users of your own tenant then never see a consent prompt.)
-8. Optional but tidy: in the **API app** (`observe-auth-api`) go to **Expose an API > Add a client application**, paste **SPA-ID**, tick `access_as_user`, **Add application**.
-9. Later, for production, add your real URL under **Authentication > Single-page application > Add URI**.
+1. In the same `observe-auth` app: **API permissions > Add a permission > My APIs > observe-auth > Delegated permissions** -> tick `access_as_user` -> **Add permissions**.
+2. Click **Grant admin consent for <your tenant>** and confirm. (Users of your own tenant then never see a consent prompt.)
+3. For production later: **Authentication > Single-page application > Add URI** with your real URL.
+
+The React app requests the scope `api://<APP-ID>/access_as_user`, so the access token's audience is this same app, which is what the Node API checks.
 
 ## Part 3. Find the ids the API needs
 
@@ -69,7 +65,7 @@ cp .env.example .env
 Edit `apps/auth-api/.env`:
 
 ```
-API_CLIENT_ID=<API-ID>
+API_CLIENT_ID=<APP-ID>
 AUTH_MODE=restricted
 SEED_TENANTS=<TENANT-ID>=Technorucs,<MINDGATE-TENANT-ID>=Mindgate
 BOOTSTRAP_ADMINS=<TENANT-ID>:<MY-OID>
@@ -102,8 +98,8 @@ cp .env.example .env.local
 Edit `apps/auth-web/.env.local`:
 
 ```
-VITE_CLIENT_ID=<SPA-ID>
-VITE_API_CLIENT_ID=<API-ID>
+VITE_CLIENT_ID=<APP-ID>
+VITE_API_CLIENT_ID=<APP-ID>
 VITE_AUTHORITY=https://login.microsoftonline.com/common
 VITE_API_URL=http://localhost:3001
 ```
@@ -162,7 +158,7 @@ Goal: a person types their Gmail address on the Microsoft sign-in page, signs in
    - Identity providers: tick **Google** (and optionally *Email one-time passcode* for people without a Google or Microsoft account).
    - User attributes: **Display Name** is enough. Attributes are only collected the first time.
    - **Create**.
-3. Open the new flow > **Applications > Add application** > pick **observe-auth-web** (the React app from Part 2) > **Select**.
+3. Open the new flow > **Applications > Add application** > pick **observe-auth** > **Select**.
 
 ### 6d. Point the React app at your tenant
 
@@ -194,7 +190,7 @@ and restart `npm run dev -w @observe/auth-web`.
 
 ## How access is decided (per request)
 
-1. Token valid? Signature, RS256, issuer `https://login.microsoftonline.com/<tid>/v2.0`, audience `<API-ID>` or `api://<API-ID>`, `ver` 2.0, not expired, scope `access_as_user`. Otherwise **401**.
+1. Token valid? Signature, RS256, issuer `https://login.microsoftonline.com/<tid>/v2.0`, audience `<APP-ID>` or `api://<APP-ID>`, `ver` 2.0, not expired, scope `access_as_user`. Otherwise **401**.
 2. Organization for the token's tenant approved? Not found -> `organization_not_approved` (restricted mode); suspended -> `organization_suspended`. **403**.
 3. First sign-in from an approved organization creates the user as `Employee`. Guests (`acct` = 1) are created as `pending` unless `GUEST_POLICY=allow`.
 4. User suspended / deleted / not an active member / no role -> `pending_approval`, `user_suspended`, `user_deleted`, `no_membership`, `no_role`. **403**.
@@ -206,12 +202,12 @@ Identities are never merged by e-mail: the same person via Microsoft and via Goo
 
 | Symptom | Cause / fix |
 |---|---|
-| Browser: `AADSTS50011 redirect URI mismatch` | Part 2 step 4: redirect must be platform **SPA**, exactly `http://localhost:5174` |
-| Browser: `AADSTS700016 application not found` | `VITE_CLIENT_ID` wrong, or the account type is not multitenant (Part 2 step 3) |
-| `AADSTS65001` / "Need admin approval" when a Mindgate user signs in | Their tenant blocks user consent. Their admin opens `https://login.microsoftonline.com/<their-tenant-id>/adminconsent?client_id=<SPA-ID>` and accepts. Apps from unverified publishers often need this |
-| API returns 401 "unexpected audience" | `API_CLIENT_ID` is not the **API** app's id, or `VITE_API_CLIENT_ID` is wrong |
+| Browser: `AADSTS50011 redirect URI mismatch` | Part 1 step 4: redirect must be platform **SPA**, exactly `http://localhost:5174` |
+| Browser: `AADSTS700016 application not found` | `VITE_CLIENT_ID` wrong, or the account type is not multitenant (Part 1 step 3) |
+| `AADSTS65001` / "Need admin approval" when a Mindgate user signs in | Their tenant blocks user consent. Their admin opens `https://login.microsoftonline.com/<their-tenant-id>/adminconsent?client_id=<APP-ID>` and accepts. Apps from unverified publishers often need this |
+| API returns 401 "unexpected audience" | `API_CLIENT_ID` or `VITE_API_CLIENT_ID` is not the app's id (all three ids are the same value) |
 | API returns 401 "Only v2.0 access tokens are accepted" | Part 1 step 7 not saved |
-| API returns 401 "missing the access_as_user scope" | Part 2 step 6 not done, or scope name misspelled |
+| API returns 401 "missing the access_as_user scope" | Part 2 step 1 not done, or scope name misspelled |
 | Browser console CORS error | `CORS_ORIGIN` must equal the web origin exactly |
 | You are `Employee` instead of `SuperAdmin` | `BOOTSTRAP_ADMINS` needs `tenantId:objectId` (your **user** object id, not the app's); restart the API and refresh |
 | Gmail user: "account not found" / no Google option | Google identity provider not saved (6b), self-service sign-up toggle off (6c step 1), the app is not added to the user flow (6c step 3), or `VITE_AUTHORITY` is not tenant-specific (6d) |
@@ -226,5 +222,5 @@ Unapproved organization, suspended user, deleted employee, expired token, invali
 
 - Store is a JSON file; `apps/auth-api/src/store.ts` is the one place to replace with SQL.
 - No admin screen yet (API calls only).
-- No production hosting or HTTPS config. Before deploying, add the real SPA URL (Part 2 step 9) and set `CORS_ORIGIN`.
+- No production hosting or HTTPS config. Before deploying, add the real SPA URL (Part 2 step 3) and set `CORS_ORIGIN`.
 - Nothing here has been run against real Entra or Google; the automated tests use a locally generated signing key.
