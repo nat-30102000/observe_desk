@@ -30,15 +30,6 @@ export const describeDenied = (reason?: string): string => (reason && REASONS[re
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
 
-/** Makes sure a guest account exists for this Gmail address. Failures are not fatal: the user can still use "Create one" on the Microsoft page. */
-export async function prepareGuest(email: string): Promise<void> {
-  try {
-    await fetch(`${API}/auth/invite`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) });
-  } catch {
-    /* API unreachable or invites disabled */
-  }
-}
-
 export async function getAccessToken(msal: IPublicClientApplication, scopes: string[]): Promise<string> {
   const account = msal.getActiveAccount() ?? msal.getAllAccounts()[0];
   if (!account) throw new ApiError(401, undefined, 'Not signed in');

@@ -38,7 +38,3 @@ dl { display: grid; grid-template-columns: max-content 1fr; gap: .6rem 1.25rem; 
 dt { font-weight: 600; color: var(--muted); }
 dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
 [role=alert] { color: var(--danger); }
-form { margin-top: 1.25rem; }
-.or { margin: 0 0 .5rem; font-size: .9rem; }
-input { width: 100%; font: inherit; padding: .65rem .8rem; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text); }
-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }

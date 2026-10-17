@@ -14,8 +14,6 @@ export interface Config {
   /** `tenantId=Name` pairs created as approved organizations at start-up. */
   seedTenants: Array<{ tenantId: string; name: string }>;
   corsOrigin: string;
-  /** Set when a client secret is given: lets the API invite Gmail users as guests before they sign in. */
-  invite?: { tenantId: string; clientId: string; clientSecret: string; redirectUrl: string; domains: string[]; perHour: number };
   dataFile?: string;
 }
 
@@ -39,19 +37,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
       return { tenantId: tenantId!.trim().toLowerCase(), name: name.join('=').trim() || tenantId!.trim() };
     }),
     corsOrigin: env.CORS_ORIGIN ?? 'http://localhost:5174',
-    invite: env.INVITE_CLIENT_SECRET
-      ? (() => {
-          if (!env.TENANT_ID) throw new Error('TENANT_ID is required when INVITE_CLIENT_SECRET is set.');
-          return {
-            tenantId: env.TENANT_ID.trim().toLowerCase(),
-            clientId,
-            clientSecret: env.INVITE_CLIENT_SECRET,
-            redirectUrl: env.WEB_URL ?? env.CORS_ORIGIN ?? 'http://localhost:5174',
-            domains: list(env.INVITE_DOMAINS ?? 'gmail.com,googlemail.com').map((d) => d.toLowerCase()),
-            perHour: Number(env.INVITES_PER_HOUR ?? 30),
-          };
-        })()
-      : undefined,
     dataFile: env.DATA_FILE || undefined,
   };
 }

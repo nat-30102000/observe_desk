@@ -213,57 +213,6 @@ This shows a second button, **Continue with Gmail**. Restart `npm run dev -w @ob
 
 ---
 
-## Part 7. Invite Gmail users automatically (no "Create one", no admin step)
-
-With this, a Gmail user types their address on **your** page, the API creates a guest account for them through Microsoft Graph, and they are sent to Microsoft with the address filled in, where Google signs them in. Finish Part 6 first (Google provider saved in Entra).
-
-### 7a. Give the app permission to invite guests
-
-1. entra.microsoft.com > **Entra ID > App registrations > observe-auth > API permissions**.
-2. **Add a permission > Microsoft Graph > Application permissions** (not Delegated), search `User.Invite.All`, tick it, **Add permissions**.
-3. Click **Grant admin consent for <tenant>** and confirm. The status must show a green tick "Granted".
-
-### 7b. Create a client secret
-
-1. Same app: **Certificates & secrets > Client secrets > New client secret**, any description, 12 or 24 months, **Add**.
-2. Copy the **Value** immediately (the long string, not the "Secret ID"). It is shown once.
-
-### 7c. API settings
-
-Add to `apps/auth-api/.env`:
-
-```
-TENANT_ID=<TENANT-ID>
-INVITE_CLIENT_SECRET=<the secret Value from 7b>
-WEB_URL=http://localhost:5174
-INVITE_DOMAINS=gmail.com,googlemail.com
-INVITES_PER_HOUR=30
-```
-
-Restart the API. Without `INVITE_CLIENT_SECRET` the feature is off and `/auth/invite` returns 404, and the Gmail form still works through Microsoft's "Create one".
-
-### 7d. Web settings
-
-`apps/auth-web/.env.local` already needs `VITE_TENANT_ID=<TENANT-ID>` (Part 6d). The login page then shows an email field and **Continue with Gmail**.
-
-### 7e. Test
-
-1. Use a Gmail address that is not yet a guest. Delete any old guest first: Entra ID > Users > the guest > Delete.
-2. Open the app, type the address under "or use a Gmail address", click **Continue with Gmail**.
-3. Microsoft opens with the address pre-filled and goes to Google. Sign in and accept consent.
-4. Check Entra ID > Users > filter User type = Guest: the user exists, Identities `google.com`.
-5. The app shows the signed-in page, or "An administrator needs to approve your account" while `GUEST_POLICY=pending`.
-
-### What the API does, and the safety limits
-
-- `POST /auth/invite` is public (the user is not signed in yet), so it is restricted: only `INVITE_DOMAINS` (Gmail by default), at most 5 requests per hour per client address and `INVITES_PER_HOUR` overall, and Graph error details are logged on the server only.
-- It sends **no invitation e-mail** (`sendInvitationMessage: false`). The guest is redeemed when the person signs in with Google, which also proves they own the address.
-- Anyone can create a guest object for a Gmail address by typing it, but only the real owner can sign in as it. Guest objects do not give access: `GUEST_POLICY=pending` still holds them until approved.
-- The client secret can create guests in your tenant. Keep it only in the API `.env` or your host's secret store, never in the web app or git, and rotate it before it expires. It lives on the same app registration as the web client; if you want stricter separation, use a second registration only for the API and move `User.Invite.All` and the secret there.
-- If the invite call fails (secret wrong or expired, permission not consented), the sign-in still continues and the user can use "Create one" as before. The reason appears in the API log as `invite failed:`.
-
----
-
 ## How access is decided (per request)
 
 1. Token valid? Signature, RS256, issuer `https://login.microsoftonline.com/<tid>/v2.0`, audience `<APP-ID>` or `api://<APP-ID>`, `ver` 2.0, not expired, scope `access_as_user`. Otherwise **401**.
@@ -287,8 +236,6 @@ Identities are never merged by e-mail: the same person via Microsoft and via Goo
 | Browser console CORS error | `CORS_ORIGIN` must equal the web origin exactly |
 | You are `Employee` instead of `SuperAdmin` | `BOOTSTRAP_ADMINS` needs `tenantId:objectId` (your **user** object id, not the app's); restart the API and refresh |
 | Gmail user: "account not found" / no Google option | Google identity provider not saved (6b), self-service sign-up toggle off (6c step 1), the app is not added to the user flow (6c step 3), or `VITE_TENANT_ID` is not set so you are not using the Gmail button (6d) |
-| API log `invite failed: Graph token request failed` | Wrong or expired secret (7b), or `TENANT_ID` wrong |
-| API log `Graph invitation failed (403)` | `User.Invite.All` is a Delegated permission or admin consent not granted (7a) |
 | Gmail user sees "approve your account" | Working as designed: activate them (6e step 4) or set `GUEST_POLICY=allow` |
 | Gmail sign-in fails inside an embedded browser | Google blocks embedded web views; use a normal browser (the React app already does) |
 
